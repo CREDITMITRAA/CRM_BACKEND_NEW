@@ -4,7 +4,11 @@ const bcrypt = require("bcryptjs");
 
 async function getAllUsers(req, res) {
   try {
-    const users = await User.findAll();
+    const users = await User.findAll({
+      where: {
+        status: 'active',
+      },
+    });
     ApiResponse(res, "success", 200, "Users fetched successfully", users);
   } catch (err) {
     ApiResponse(res, "error", 500, "Failed to fetch users", null, {
