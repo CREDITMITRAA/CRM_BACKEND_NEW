@@ -1,0 +1,16 @@
+const { Sequelize } = require('sequelize');
+
+// Create a connection pool
+const sequelize = new Sequelize(process.env.DB_NAME, process.env.DB_USER, process.env.DB_PASSWORD, {
+    host: process.env.DB_HOST || 'localhost',
+    dialect: 'mysql',
+    pool: {
+        max: 10, // Maximum number of connections in the pool
+        min: 0,  // Minimum number of connections in the pool
+        acquire: 30000, // Maximum time, in ms, a connection can be idle before being released
+        idle: 10000, // Maximum time, in ms, that pool will try to get a connection before throwing error
+    },
+    logging: false, // Set to `true` to log SQL queries for debugging
+});
+
+module.exports = sequelize;
