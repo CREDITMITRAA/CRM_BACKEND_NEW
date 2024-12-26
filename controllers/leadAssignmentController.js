@@ -23,12 +23,13 @@ async function assignLeadsToEmployee(req, res) {
       return ApiResponse(res, "ERROR", 400, "Missing required fields!");
     }
 
-    // Fetch the assigned employee and assigning user
+    // Fetch the assigned employee and assigning user (no validation needed if they exist in DB)
     const [employee, assigningUser] = await Promise.all([
       User.findByPk(assignedTo),
       User.findByPk(assignedBy),
     ]);
 
+    // Validate that employee and assigning user exist
     if (!employee) {
       return ApiResponse(res, "ERROR", 404, "Assigned employee not found!");
     }
@@ -36,27 +37,8 @@ async function assignLeadsToEmployee(req, res) {
       return ApiResponse(res, "ERROR", 404, "Assigning user not found!");
     }
 
-    // Fetch all provided leads to ensure they exist
-    const existingLeads = await Lead.findAll({
-      where: { id: leadIds },
-      attributes: ["id"], // Fetch only required fields
-    });
-    const existingLeadIds = existingLeads.map((lead) => lead.id);
-
-    const invalidLeadIds = leadIds.filter(
-      (id) => !existingLeadIds.includes(id)
-    );
-    if (invalidLeadIds.length > 0) {
-      return ApiResponse(
-        res,
-        "ERROR",
-        400,
-        `Invalid lead IDs: ${invalidLeadIds.join(", ")}`
-      );
-    }
-
     // Prepare bulk upsert data for lead assignments
-    const bulkAssignments = existingLeadIds.map((leadId) => ({
+    const bulkAssignments = leadIds.map((leadId) => ({
       lead_id: leadId,
       assigned_to: assignedTo,
       assigned_by: assignedBy,
@@ -72,10 +54,13 @@ async function assignLeadsToEmployee(req, res) {
     // Commit transaction
     await transaction.commit();
 
+    // Return response with the assigned employee's name
     return ApiResponse(res, "SUCCESS", 200, "Leads assigned successfully!", {
-      assignedTo,
-      assignedBy,
-      assignedLeadIds: existingLeadIds,
+      assignedTo: {
+        name: employee.name,  // Return the assigned employee's name
+      },
+      assignedBy: assigningUser.name,
+      assignedLeadIds: leadIds,
     });
   } catch (error) {
     console.error("Error assigning leads to employee:", error);
@@ -91,6 +76,7 @@ async function assignLeadsToEmployee(req, res) {
     );
   }
 }
+
 
 async function getLeadsByAssignedUserId(req, res) {
   try {
