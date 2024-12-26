@@ -23,10 +23,14 @@ async function createBulkLeads(req, res) {
   console.log(req.body, "Received leads data");
 
   const transaction = await sequelize.transaction(); // Start a transaction
-  try {
-    // Flag to enable/disable validation (Set to true in future for validation)
-    const validateLeads = false;
 
+  // Flags to enable/disable validation for specific fields
+  const validatePhone = true; // Set to false to skip phone validation
+  const validateEmail = false; // Set to false to skip email validation
+  const validateName = true;  // Set to false to skip name validation
+  const validateSource = false; // Set to false to skip source validation
+
+  try {
     // Validate input: ensure it's a non-empty array
     if (!Array.isArray(req.body) || req.body.length === 0) {
       return ApiResponse(
@@ -38,51 +42,83 @@ async function createBulkLeads(req, res) {
     }
 
     // If validation is enabled, perform validation
-    let validLeads = req.body;
+    let validLeads = [];
     let invalidLeads = [];
 
-    if (validateLeads) {
-      // Validation regex
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/; // Basic email regex
-      const phoneRegex = /^[0-9]{10}$/; // Phone number should be exactly 10 digits
+    // Set to track duplicates
+    const phoneSet = new Set();
+    const emailSet = new Set();
 
-      validLeads = [];
-      invalidLeads = [];
+    // Validation regex
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/; // Basic email regex
+    const phoneRegex = /^(\+?\d{1,3}[-.\s]?)?(\d{10})$/; // Updated to allow optional country code
 
-      req.body.forEach((lead) => {
-        if (
-          lead.name &&
-          lead.email &&
-          emailRegex.test(lead.email) &&
-          lead.phone &&
-          phoneRegex.test(lead.phone)
-          // lead.source // Ensure lead_source is present
-        ) {
-          validLeads.push(lead);
-        } else {
-          invalidLeads.push({
-            ...lead,
-            reason: `Invalid ${
-              !lead.name
-                ? "name"
-                : !lead.email || !emailRegex.test(lead.email)
-                ? "email"
-                : !lead.phone || !phoneRegex.test(lead.phone)
-                ? "phone"
-                : "data"
-            }`,
-          });
+    req.body.forEach((lead) => {
+      let isValid = true;
+      let reason = "";
+
+      // Check for duplicate phone and email
+      if (phoneSet.has(lead.phone)) {
+        isValid = false;
+        reason = "duplicate phone";
+      } else if (emailSet.has(lead.email)) {
+        isValid = false;
+        reason = "duplicate email";
+      }
+
+      if (isValid) {
+        // Validate name
+        if (validateName && !lead.name) {
+          invalidLeads.push({ ...lead, reason: "Invalid name" });
         }
-      });
-    }
+        // Validate email
+        else if (validateEmail && !emailRegex.test(lead.email)) {
+          invalidLeads.push({ ...lead, reason: "Invalid email" });
+        }
+        // Validate phone
+        else if (validatePhone && !phoneRegex.test(lead.phone)) {
+          invalidLeads.push({ ...lead, reason: "Invalid phone" });
+        }
+        // Validate source
+        else if (validateSource && !lead.lead_source) {
+          invalidLeads.push({ ...lead, reason: "Invalid source" });
+        }
+        else {
+          validLeads.push(lead);
+          phoneSet.add(lead.phone);  // Track unique phone numbers
+          emailSet.add(lead.email);  // Track unique emails
+        }
+      } else {
+        invalidLeads.push({ ...lead, reason: `Duplicate ${reason}` });
+      }
+    });
 
     // Handle valid leads: Bulk create within a transaction
     let createdLeads = [];
     if (validLeads.length > 0) {
-      createdLeads = await Lead.bulkCreate(validLeads, {
-        validate: true,
-        transaction,
-      });
+      try {
+        createdLeads = await Lead.bulkCreate(validLeads, {
+          validate: true,
+          transaction,
+        });
+      } catch (error) {
+        // Handle database error (e.g., ER_DUP_ENTRY)
+        if (error.code === 'ER_DUP_ENTRY') {
+          const dbErrorLeads = validLeads.map((lead) => ({
+            ...lead,
+            reason: `Database error: ${error.sqlMessage}`,
+          }));
+          await InvalidLead.bulkCreate(dbErrorLeads, { transaction });
+          console.error("Error during bulk creation of valid leads:", error);
+        } else {
+          const dbErrorLeads = validLeads.map((lead) => ({
+            ...lead,
+            reason: `Database error: ${error.message}`,
+          }));
+          await InvalidLead.bulkCreate(dbErrorLeads, { transaction });
+          console.error("Error during bulk creation of valid leads:", error);
+        }
+      }
     }
 
     // Handle invalid leads: Save to InvalidLeads table
@@ -125,16 +161,22 @@ async function createBulkLeads(req, res) {
       );
     }
 
-    // Handle other errors
+    // Handle other errors with detailed message
     return ApiResponse(
       res,
       "error",
       500,
       "Failed to process leads",
-      error.message
+      `Error: ${error.message}`
     );
   }
 }
+
+
+
+
+
+
 
 
 async function getAllLeadsWithPagination(req, res) {

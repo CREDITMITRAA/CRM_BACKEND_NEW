@@ -4,9 +4,9 @@ const { LEAD_STATUSES, VERIFICATION_STATUSES } = require('../utilities/constants
 module.exports = (sequelize) => {
   return sequelize.define('Lead', {
     id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
-    name: { type: DataTypes.STRING, allowNull: false },
-    email: { type: DataTypes.STRING, allowNull: false },
-    phone: { type: DataTypes.STRING(15) },
+    name: { type: DataTypes.STRING },
+    email: { type: DataTypes.STRING },
+    phone: { type: DataTypes.STRING(15), unique:true },
     city: { type: DataTypes.STRING },
     company: { type: DataTypes.STRING },
     lead_source: { type: DataTypes.STRING },
