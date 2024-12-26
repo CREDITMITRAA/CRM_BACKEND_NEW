@@ -6,12 +6,12 @@ async function addActivity(req, res) {
   const transaction = await sequelize.transaction();
   try {
     const {
-      userId = null, // Default to null
-      leadId = null, // Default to null
+      userId = null,
+      leadId = null,
       activity_status, // Mandatory field
-      description = null, // Default to null
+      description = null,
       docsCollected = 0, // Default to 0
-      followUp = null, // Default to null
+      followUp = null,
       lead_status = null,
     } = req.body;
 
@@ -27,13 +27,28 @@ async function addActivity(req, res) {
       );
     }
 
-    // Create a new Task (Activity)
+    // Check for existing activity (if leadId is provided)
+    let existingActivity;
+    if (leadId) {
+      existingActivity = await Activity.findOne({
+        where: { lead_id: leadId },
+        transaction,
+      });
+    }
+
+    // Calculate new docsCollected based on existing and new values
+    let newDocsCollected = docsCollected; 
+    if (existingActivity && existingActivity.docs_collected > 0) {
+      newDocsCollected = existingActivity.docs_collected; 
+    }
+
+    // Create a new Activity
     const activity = await Activity.create(
       {
         lead_id: leadId,
         activity_status,
         description,
-        docs_collected: docsCollected,
+        docs_collected: newDocsCollected,
         created_by: userId,
         follow_up: followUp,
         lead_status,
@@ -41,16 +56,19 @@ async function addActivity(req, res) {
       { transaction }
     );
 
-    // Update the status in the Lead table if leadId is provided
+    // Update lead status if leadId is provided
     if (leadId) {
       const lead = await Lead.findByPk(leadId, { transaction });
       if (!lead) {
         await transaction.rollback();
         return ApiResponse(res, "error", 404, "Lead not found!", null, null);
       }
-      if(activity_status === "Verification 1"){
-        await lead.update({ verification_status: activity_status, lead_status: activity_status }, { transaction });
-      }else{
+      if (activity_status === "Verification 1") {
+        await lead.update(
+          { verification_status: activity_status, lead_status: activity_status },
+          { transaction }
+        );
+      } else {
         await lead.update({ lead_status: activity_status }, { transaction });
       }
     }
