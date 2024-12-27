@@ -23,6 +23,12 @@ const VERIFICATION_STATUSES = [
     "Rejected"
 ]
 
+const TASK_STATUSES = [
+    "Upcoming",
+    "Pending",
+    "Completed"
+]
+
 const ROLE_ADMIN = "ROLE_ADMIN"
 const ROLE_EMPLOYEE = "ROLE_EMPLOYEE"
 const ROLE_MANAGER = "ROLE_MANAGER"
@@ -32,5 +38,6 @@ module.exports = {
     VERIFICATION_STATUSES,
     ROLE_ADMIN,
     ROLE_EMPLOYEE,
-    ROLE_MANAGER
+    ROLE_MANAGER,
+    TASK_STATUSES
 }

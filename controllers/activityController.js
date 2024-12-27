@@ -1,5 +1,12 @@
 const { Op } = require("sequelize");
-const { sequelize, User, Lead, Activity, LeadAssignment } = require("../models");
+const moment = require("moment-timezone");
+const {
+  sequelize,
+  User,
+  Lead,
+  Activity,
+  LeadAssignment,
+} = require("../models");
 const { ApiResponse } = require("../utilities/api-responses/ApiResponse");
 
 async function addActivity(req, res) {
@@ -37,9 +44,9 @@ async function addActivity(req, res) {
     }
 
     // Calculate new docsCollected based on existing and new values
-    let newDocsCollected = docsCollected; 
+    let newDocsCollected = docsCollected;
     if (existingActivity && existingActivity.docs_collected > 0) {
-      newDocsCollected = existingActivity.docs_collected; 
+      newDocsCollected = existingActivity.docs_collected;
     }
 
     // Create a new Activity
@@ -65,7 +72,10 @@ async function addActivity(req, res) {
       }
       if (activity_status === "Verification 1") {
         await lead.update(
-          { verification_status: activity_status, lead_status: activity_status },
+          {
+            verification_status: activity_status,
+            lead_status: activity_status,
+          },
           { transaction }
         );
       } else {
@@ -166,7 +176,6 @@ async function getActivitiesByLeadId(req, res) {
   }
 }
 
-
 async function updateActivityByActivityId(req, res) {
   try {
     const { activityId } = req.params;
@@ -248,7 +257,7 @@ async function getAllActivities(req, res) {
       pageSize = 25,
       activity_status,
       createdAt,
-      created_by
+      created_by,
     } = req.query;
 
     page = parseInt(page);
@@ -258,13 +267,25 @@ async function getAllActivities(req, res) {
     if (isNaN(pageSize) || pageSize < 1) pageSize = 10;
 
     const whereConditions = {};
-    if (activity_status) whereConditions.activity_status = { [Op.like]: `%${activity_status}%` };
-    if (created_by) whereConditions.created_by = {[Op.like] : `%${created_by}`}
+    if (activity_status)
+      whereConditions.activity_status = { [Op.like]: `%${activity_status}%` };
+    if (created_by)
+      whereConditions.created_by = { [Op.like]: `%${created_by}` };
 
     if (createdAt) {
-      const startOfDayUTC = moment.tz(createdAt, "Asia/Kolkata").startOf("day").utc().toDate();
-      const endOfDayUTC = moment.tz(createdAt, "Asia/Kolkata").endOf("day").utc().toDate();
-      whereConditions.createdAt = { [Op.between]: [startOfDayUTC, endOfDayUTC] };
+      const startOfDayUTC = moment
+        .tz(createdAt, "Asia/Kolkata")
+        .startOf("day")
+        .utc()
+        .toDate();
+      const endOfDayUTC = moment
+        .tz(createdAt, "Asia/Kolkata")
+        .endOf("day")
+        .utc()
+        .toDate();
+      whereConditions.createdAt = {
+        [Op.between]: [startOfDayUTC, endOfDayUTC],
+      };
     }
 
     const includeConditions = [
@@ -306,20 +327,148 @@ async function getAllActivities(req, res) {
       pageSize,
     };
 
-    return ApiResponse(res, "SUCCESS", 200, "Activities fetched successfully", rows, null, pagination);
+    return ApiResponse(
+      res,
+      "SUCCESS",
+      200,
+      "Activities fetched successfully",
+      rows,
+      null,
+      pagination
+    );
   } catch (error) {
     console.error("Error fetching activities:", error);
-    return ApiResponse(res, "ERROR", 500, "Failed to fetch activities!", null, error, null);
+    return ApiResponse(
+      res,
+      "ERROR",
+      500,
+      "Failed to fetch activities!",
+      null,
+      error,
+      null
+    );
   }
 }
 
+async function getAllTasks(req, res) {
+  try {
+    let { page = 1, pageSize = 25, created_by } = req.query;
 
+    const activity_statuses = ["Follow Up", "Call Back"];
 
+    // Validate pagination params
+    page = parseInt(page);
+    pageSize = parseInt(pageSize);
 
+    if (isNaN(page) || page < 1) page = 1;
+    if (isNaN(pageSize) || pageSize < 1) pageSize = 10;
+
+    // Calculate T+2 range in UTC
+    const startOfTodayUTC = moment
+      .tz("Asia/Kolkata")
+      .startOf("day")
+      .utc()
+      .toDate();
+
+    const endOfTPlus2UTC = moment
+      .tz("Asia/Kolkata")
+      .add(2, "days")
+      .endOf("day")
+      .utc()
+      .toDate();
+
+    const whereConditionsT2 = {
+      activity_status: { [Op.in]: activity_statuses },
+      follow_up: { [Op.between]: [startOfTodayUTC, endOfTPlus2UTC] },
+    };
+
+    const whereConditionsBeyondT2 = {
+      activity_status: { [Op.in]: activity_statuses },
+      follow_up: { [Op.notBetween]: [startOfTodayUTC, endOfTPlus2UTC] },
+    };
+
+    if(created_by){
+      whereConditionsT2.created_by = created_by;
+      whereConditionsBeyondT2.created_by = created_by;
+    }
+    
+    const includeConditions = [
+      {
+        model: Lead,
+        as: "Lead",
+        required: true,
+        include: [
+          {
+            model: LeadAssignment,
+            as: "LeadAssignments",
+            required: false,
+            include: [
+              {
+                model: User,
+                as: "AssignedTo",
+                attributes: ["id", "name"],
+              },
+            ],
+          },
+        ],
+      },
+    ];
+
+    // Fetch T+2 tasks
+    const tasksWithinT2 = await Activity.findAll({
+      where: whereConditionsT2,
+      include: includeConditions,
+      order: [["createdAt", "DESC"]],
+    });
+
+    // Fetch tasks beyond T+2
+    const tasksBeyondT2 = await Activity.findAll({
+      where: whereConditionsBeyondT2,
+      include: includeConditions,
+      order: [["createdAt", "DESC"]],
+    });
+
+    // Combine and paginate results
+    const combinedTasks = [...tasksWithinT2, ...tasksBeyondT2];
+    const paginatedTasks = combinedTasks.slice(
+      (page - 1) * pageSize,
+      page * pageSize
+    );
+
+    const pagination = {
+      page,
+      totalPages: Math.ceil(combinedTasks.length / pageSize),
+      total: combinedTasks.length,
+      pageSize,
+    };
+
+    return ApiResponse(
+      res,
+      "SUCCESS",
+      200,
+      "Tasks fetched successfully",
+      paginatedTasks,
+      null,
+      pagination
+    );
+  } catch (error) {
+    console.error("Error fetching tasks:", error.stack);
+    return ApiResponse(
+      res,
+      "ERROR",
+      500,
+      "Failed to fetch tasks!",
+      null,
+      error,
+      null
+    );
+  }
+}
 
 module.exports = {
   addActivity,
   getActivitiesByLeadId,
   updateActivityByActivityId,
-  getAllActivities
+  getAllActivities,
+  getAllTasks,
 };
