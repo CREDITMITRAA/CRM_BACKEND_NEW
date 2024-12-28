@@ -115,6 +115,7 @@ async function getLeadsByAssignedUserId(req, res) {
     if (email) leadFilters.email = { [Op.like]: `%${email}%` };
     if (phone) leadFilters.phone = { [Op.like]: `%${phone}%` };
     if (leadSource) leadFilters.lead_source = { [Op.like]: `%${leadSource}%` };
+    if (leadStatus) leadFilters.lead_status = {[Op.like] : `%${leadStatus}%`}
 
     // Handle date filter (adjusting for UTC vs. local timezone differences)
     if (date) {
@@ -125,7 +126,6 @@ async function getLeadsByAssignedUserId(req, res) {
     }
 
     const activityFilters = {};
-    if (leadStatus) activityFilters.activity_status = leadStatus;
     if (docsCollected !== undefined) activityFilters.docs_collected = docsCollected === '1';
 
     const leadAssignmentFilters = { assigned_to: userId };
