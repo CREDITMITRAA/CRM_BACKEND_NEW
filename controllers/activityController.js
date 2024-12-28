@@ -352,7 +352,7 @@ async function getAllActivities(req, res) {
 
 async function getAllTasks(req, res) {
   try {
-    let { page = 1, pageSize = 25, created_by } = req.query;
+    let { page = 1, pageSize = 25, created_by, follow_up } = req.query;
 
     const activity_statuses = ["Follow Up", "Call Back"];
 
@@ -363,35 +363,6 @@ async function getAllTasks(req, res) {
     if (isNaN(page) || page < 1) page = 1;
     if (isNaN(pageSize) || pageSize < 1) pageSize = 10;
 
-    // Calculate T+2 range in UTC
-    const startOfTodayUTC = moment
-      .tz("Asia/Kolkata")
-      .startOf("day")
-      .utc()
-      .toDate();
-
-    const endOfTPlus2UTC = moment
-      .tz("Asia/Kolkata")
-      .add(2, "days")
-      .endOf("day")
-      .utc()
-      .toDate();
-
-    const whereConditionsT2 = {
-      activity_status: { [Op.in]: activity_statuses },
-      follow_up: { [Op.between]: [startOfTodayUTC, endOfTPlus2UTC] },
-    };
-
-    const whereConditionsBeyondT2 = {
-      activity_status: { [Op.in]: activity_statuses },
-      follow_up: { [Op.notBetween]: [startOfTodayUTC, endOfTPlus2UTC] },
-    };
-
-    if(created_by){
-      whereConditionsT2.created_by = created_by;
-      whereConditionsBeyondT2.created_by = created_by;
-    }
-    
     const includeConditions = [
       {
         model: Lead,
@@ -414,43 +385,115 @@ async function getAllTasks(req, res) {
       },
     ];
 
-    // Fetch T+2 tasks
-    const tasksWithinT2 = await Activity.findAll({
-      where: whereConditionsT2,
-      include: includeConditions,
-      order: [["createdAt", "DESC"]],
-    });
-
-    // Fetch tasks beyond T+2
-    const tasksBeyondT2 = await Activity.findAll({
-      where: whereConditionsBeyondT2,
-      include: includeConditions,
-      order: [["createdAt", "DESC"]],
-    });
-
-    // Combine and paginate results
-    const combinedTasks = [...tasksWithinT2, ...tasksBeyondT2];
-    const paginatedTasks = combinedTasks.slice(
-      (page - 1) * pageSize,
-      page * pageSize
-    );
-
-    const pagination = {
-      page,
-      totalPages: Math.ceil(combinedTasks.length / pageSize),
-      total: combinedTasks.length,
-      pageSize,
+    let whereConditions = {
+      activity_status: { [Op.in]: activity_statuses },
     };
 
-    return ApiResponse(
-      res,
-      "SUCCESS",
-      200,
-      "Tasks fetched successfully",
-      paginatedTasks,
-      null,
-      pagination
-    );
+    if (created_by) {
+      whereConditions.created_by = created_by;
+    }
+
+    if (follow_up) {
+      // Parse follow_up date and create the range
+      const followUpStartUTC = moment(follow_up).startOf("day").utc().toDate();
+      const followUpEndUTC = moment(follow_up).endOf("day").utc().toDate();
+
+      whereConditions.follow_up = { [Op.between]: [followUpStartUTC, followUpEndUTC] };
+
+      console.log("follow_up in UTC range:", followUpStartUTC, followUpEndUTC);
+
+      // Fetch tasks with the applied conditions
+      const tasks = await Activity.findAll({
+        where: whereConditions,
+        include: includeConditions,
+        order: [["createdAt", "DESC"]],
+      });
+
+      // Paginate results
+      const paginatedTasks = tasks.slice(
+        (page - 1) * pageSize,
+        page * pageSize
+      );
+
+      const pagination = {
+        page,
+        totalPages: Math.ceil(tasks.length / pageSize),
+        total: tasks.length,
+        pageSize,
+      };
+
+      return ApiResponse(
+        res,
+        "SUCCESS",
+        200,
+        "Tasks fetched successfully",
+        paginatedTasks,
+        null,
+        pagination
+      );
+    } else {
+      // Handle all tasks (T+2 and beyond)
+      const startOfTodayUTC = moment
+        .tz("Asia/Kolkata")
+        .startOf("day")
+        .utc()
+        .toDate();
+
+      const endOfTPlus2UTC = moment
+        .tz("Asia/Kolkata")
+        .add(2, "days")
+        .endOf("day")
+        .utc()
+        .toDate();
+
+      // Tasks within T+2
+      const whereConditionsT2 = {
+        ...whereConditions,
+        follow_up: { [Op.between]: [startOfTodayUTC, endOfTPlus2UTC] },
+      };
+
+      // Tasks beyond T+2
+      const whereConditionsBeyondT2 = {
+        ...whereConditions,
+        follow_up: { [Op.notBetween]: [startOfTodayUTC, endOfTPlus2UTC] },
+      };
+
+      const tasksWithinT2 = await Activity.findAll({
+        where: whereConditionsT2,
+        include: includeConditions,
+        order: [["createdAt", "DESC"]],
+      });
+
+      const tasksBeyondT2 = await Activity.findAll({
+        where: whereConditionsBeyondT2,
+        include: includeConditions,
+        order: [["createdAt", "DESC"]],
+      });
+
+      // Combine results and paginate
+      const combinedTasks = [...tasksWithinT2, ...tasksBeyondT2];
+      const paginatedTasks = combinedTasks.slice(
+        (page - 1) * pageSize,
+        page * pageSize
+      );
+
+      const pagination = {
+        page,
+        totalPages: Math.ceil(combinedTasks.length / pageSize),
+        total: combinedTasks.length,
+        pageSize,
+      };
+
+      return ApiResponse(
+        res,
+        "SUCCESS",
+        200,
+        "Tasks fetched successfully",
+        paginatedTasks,
+        null,
+        pagination
+      );
+    }
   } catch (error) {
     console.error("Error fetching tasks:", error.stack);
     return ApiResponse(
@@ -464,6 +507,9 @@ async function getAllTasks(req, res) {
     );
   }
 }
+
+
+
 
 module.exports = {
   addActivity,
