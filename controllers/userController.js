@@ -1,3 +1,4 @@
+const { where, Op } = require("sequelize");
 const { User, sequelize, Role, LeadAssignment, Activity } = require("../models");
 const { ApiResponse } = require("../utilities/api-responses/ApiResponse");
 const bcrypt = require("bcryptjs");
@@ -200,10 +201,35 @@ const deleteUserByUserId = async (req, res) => {
   }
 };
 
+async function getUsersByName(req,res){
+  try {
+    console.log('request received');
+    
+    const {name} = req.query
+    if(!name){
+      return ApiResponse(res, 'error', 400, "Missing required fields !")
+    }
+
+    const users = await User.findAll({
+      attributes: ["id","name"],
+      where:{
+        name:{
+          [Op.like] : `%${name}%`
+        }
+      }
+    })
+
+    return ApiResponse(res,'success', 200, "Users with matching name fetch successfully", users, null,null)
+  } catch (error) {
+      console.log(error);
+      return ApiResponse(res, 'error', 500, "Failed to fetch users with matching name !", null, error, null)
+  }
+}
 module.exports = {
   getAllUsers,
   getUserById,
   createUser,
   updateUser,
   deleteUserByUserId,
+  getUsersByName
 };
