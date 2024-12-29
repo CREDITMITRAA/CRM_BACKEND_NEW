@@ -398,7 +398,9 @@ async function getAllTasks(req, res) {
       const followUpStartUTC = moment(follow_up).startOf("day").utc().toDate();
       const followUpEndUTC = moment(follow_up).endOf("day").utc().toDate();
 
-      whereConditions.follow_up = { [Op.between]: [followUpStartUTC, followUpEndUTC] };
+      whereConditions.follow_up = {
+        [Op.between]: [followUpStartUTC, followUpEndUTC],
+      };
 
       console.log("follow_up in UTC range:", followUpStartUTC, followUpEndUTC);
 
@@ -508,8 +510,64 @@ async function getAllTasks(req, res) {
   }
 }
 
+async function updateTaskStatus(req, res) {
+  try {
+    const { task_status, activity_id } = req.body;
 
+    // Validate request body
+    if (!task_status || !activity_id) {
+      return ApiResponse(
+        res,
+        "error",
+        400,
+        "Task Status and Activity ID are required!",
+        null,
+        null,
+        null
+      );
+    }
 
+    // Update task_status in the Activity model
+    const updatedActivity = await Activity.update(
+      { task_status }, // Fields to update
+      { where: { id: activity_id } } // Condition
+    );
+
+    // Check if the update was successful
+    if (updatedActivity[0] === 0) {
+      return ApiResponse(
+        res,
+        "error",
+        404,
+        "Activity not found or no changes made!",
+        null,
+        null,
+        null
+      );
+    }
+
+    return ApiResponse(
+      res,
+      "success",
+      200,
+      "Task Status updated successfully!",
+      { task_status, activity_id },
+      null,
+      null
+    );
+  } catch (error) {
+    console.error(error);
+    return ApiResponse(
+      res,
+      "error",
+      500,
+      "Failed to update Task Status!",
+      null,
+      error,
+      null
+    );
+  }
+}
 
 module.exports = {
   addActivity,
@@ -517,4 +575,5 @@ module.exports = {
   updateActivityByActivityId,
   getAllActivities,
   getAllTasks,
+  updateTaskStatus
 };
