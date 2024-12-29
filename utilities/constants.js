@@ -33,11 +33,18 @@ const ROLE_ADMIN = "ROLE_ADMIN"
 const ROLE_EMPLOYEE = "ROLE_EMPLOYEE"
 const ROLE_MANAGER = "ROLE_MANAGER"
 
+const WALK_IN_STATUSES = [
+    "Upcoming",
+    "Rescheduled",
+    "Completed"
+]
+
 module.exports = {
     LEAD_STATUSES,
     VERIFICATION_STATUSES,
     ROLE_ADMIN,
     ROLE_EMPLOYEE,
     ROLE_MANAGER,
-    TASK_STATUSES
+    TASK_STATUSES,
+    WALK_IN_STATUSES
 }
