@@ -27,7 +27,7 @@ async function createBulkLeads(req, res) {
   // Flags to enable/disable validation for specific fields
   const validatePhone = true; // Set to false to skip phone validation
   const validateEmail = false; // Set to false to skip email validation
-  const validateName = true;  // Set to false to skip name validation
+  const validateName = true; // Set to false to skip name validation
   const validateSource = true; // Set to false to skip source validation
 
   try {
@@ -82,11 +82,10 @@ async function createBulkLeads(req, res) {
         // Validate source
         else if (validateSource && !lead.lead_source) {
           invalidLeads.push({ ...lead, reason: "Invalid source" });
-        }
-        else {
+        } else {
           validLeads.push(lead);
-          phoneSet.add(lead.phone);  // Track unique phone numbers
-          emailSet.add(lead.email);  // Track unique emails
+          phoneSet.add(lead.phone); // Track unique phone numbers
+          emailSet.add(lead.email); // Track unique emails
         }
       } else {
         invalidLeads.push({ ...lead, reason: `Duplicate ${reason}` });
@@ -103,7 +102,7 @@ async function createBulkLeads(req, res) {
         });
       } catch (error) {
         // Handle database error (e.g., ER_DUP_ENTRY)
-        if (error.code === 'ER_DUP_ENTRY') {
+        if (error.code === "ER_DUP_ENTRY") {
           const dbErrorLeads = validLeads.map((lead) => ({
             ...lead,
             reason: `Database error: ${error.sqlMessage}`,
@@ -172,13 +171,6 @@ async function createBulkLeads(req, res) {
   }
 }
 
-
-
-
-
-
-
-
 async function getAllLeadsWithPagination(req, res) {
   try {
     let {
@@ -194,7 +186,7 @@ async function getAllLeadsWithPagination(req, res) {
       verification_status,
       assigned_to,
       lead_status,
-      assigned_to_name
+      assigned_to_name,
     } = req.query;
 
     // const limit = parseInt(req.query.limit) || 50;
@@ -206,7 +198,7 @@ async function getAllLeadsWithPagination(req, res) {
     if (isNaN(pageSize) || pageSize < 1) pageSize = 10;
 
     const whereConditions = {};
-    let leadAssignmentConditions= {}
+    let leadAssignmentConditions = {};
     if (name) whereConditions.name = { [Op.like]: `%${name}%` };
     if (email) whereConditions.email = { [Op.like]: `%${email}%` };
     if (phone) whereConditions.phone = { [Op.like]: `%${phone}%` };
@@ -240,11 +232,11 @@ async function getAllLeadsWithPagination(req, res) {
       };
     }
 
-    if(assigned_to){
-      leadAssignmentConditions.assigned_to=assigned_to
+    if (assigned_to) {
+      leadAssignmentConditions.assigned_to = assigned_to;
     }
 
-     if (assigned_to_name) {
+    if (assigned_to_name) {
       // Use `Op.like` to filter based on the assigned user's name
       leadAssignmentConditions["AssignedTo.name"] = {
         [Op.like]: `%${assigned_to_name}%`,
@@ -274,14 +266,22 @@ async function getAllLeadsWithPagination(req, res) {
       },
     ];
 
+    const shouldOrderByUpdatedAt = whereConditions?.verification_status || whereConditions?.lead_status || whereConditions?.activity_status;
+    const orderConditions = shouldOrderByUpdatedAt
+      ? [
+          ["updatedAt", "DESC"], // Apply updatedAt sorting if verification_status is included
+          ["createdAt", "DESC"],
+          ["id", "DESC"],
+        ]
+      : [
+          ["createdAt", "DESC"], // Default ordering
+          ["id", "DESC"],
+        ];
+
     const { count, rows } = await Lead.findAndCountAll({
       where: whereConditions,
       include: includeConditions,
-      order: [
-        ["createdAt", "DESC"],
-        ["updatedAt","DESC"],
-        ["id", "DESC"],
-      ],
+      order: orderConditions,
       limit: pageSize,
       offset: (page - 1) * pageSize,
       distinct: true,
@@ -550,8 +550,12 @@ async function getTotalLeadsCount(req, res) {
     let assignmentConditions = {};
 
     if (status) leadConditions.status = { [Op.like]: `%${status}%` };
-    if (lead_status) leadConditions.lead_status = { [Op.like]: `%${lead_status}%` };
-    if (verification_status) leadConditions.verification_status = { [Op.like]: `%${verification_status}%` };
+    if (lead_status)
+      leadConditions.lead_status = { [Op.like]: `%${lead_status}%` };
+    if (verification_status)
+      leadConditions.verification_status = {
+        [Op.like]: `%${verification_status}%`,
+      };
 
     // Filters for LeadAssignment
     if (assigned_to) assignmentConditions.assigned_to = assigned_to;
@@ -627,7 +631,6 @@ async function getTotalLeadsCount(req, res) {
     );
   }
 }
-
 
 module.exports = {
   createBulkLeads,
