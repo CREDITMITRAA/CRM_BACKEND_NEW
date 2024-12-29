@@ -545,28 +545,28 @@ async function getTotalLeadsCount(req, res) {
       today = "false",
       assigned_to,
     } = req.query;
+
     let leadConditions = {};
     let assignmentConditions = {};
+
     if (status) leadConditions.status = { [Op.like]: `%${status}%` };
-    if (lead_status)
-      leadConditions.lead_status = { [Op.like]: `%${lead_status}%` };
-    if (verification_status)
-      leadConditions.verification_status = {
-        [Op.like]: `%${verification_status}%`,
-      };
+    if (lead_status) leadConditions.lead_status = { [Op.like]: `%${lead_status}%` };
+    if (verification_status) leadConditions.verification_status = { [Op.like]: `%${verification_status}%` };
 
     // Filters for LeadAssignment
     if (assigned_to) assignmentConditions.assigned_to = assigned_to;
 
-    // Handle today filter: Convert IST to UTC
+    // Handle 'today' filter: Convert IST to UTC
     if (today === "true") {
-      // Get the current date in IST
-      const todayStartIST = moment().tz("Asia/Kolkata").startOf("day"); // 12:00 AM IST
-      const todayEndIST = moment().tz("Asia/Kolkata").endOf("day"); // 11:59 PM IST
+      // Get today's date in IST
+      const todayStartIST = moment.tz("Asia/Kolkata").startOf("day").toDate();
+      const todayEndIST = moment.tz("Asia/Kolkata").endOf("day").toDate();
 
-      // Convert these to UTC
-      const todayStartUTC = todayStartIST.utc().format("YYYY-MM-DD HH:mm:ss");
-      const todayEndUTC = todayEndIST.utc().format("YYYY-MM-DD HH:mm:ss");
+      // Convert to UTC
+      const todayStartUTC = moment(todayStartIST).utc().toDate();
+      const todayEndUTC = moment(todayEndIST).utc().toDate();
+
+      console.log("Date range in UTC:", todayStartUTC, todayEndUTC);
 
       if (assigned_to) {
         // Apply to LeadAssignment's `createdAt` if `assigned_to` is provided
@@ -574,7 +574,7 @@ async function getTotalLeadsCount(req, res) {
           [Op.between]: [todayStartUTC, todayEndUTC],
         };
       } else {
-        // Add the date range filter to whereConditions
+        // Apply date range to Lead's `createdAt`
         leadConditions.createdAt = {
           [Op.between]: [todayStartUTC, todayEndUTC],
         };
@@ -596,43 +596,38 @@ async function getTotalLeadsCount(req, res) {
         ],
       });
     } else {
-      // Otherwise, count from the Lead table directly
+      // Otherwise, count directly from the Lead table
       totalLeads = await Lead.count({
         where: leadConditions,
       });
     }
 
-    console.log("total leads today = ", totalLeads);
-    if (totalLeads === 0) {
-      return ApiResponse(
-        res,
-        "success",
-        200,
-        "Leads count fetched successfully",
-        totalLeads.toString()
-      );
-    }
+    console.log("Total leads count:", totalLeads);
+
+    // Return the response
     return ApiResponse(
       res,
       "success",
       200,
-      "Leads count fetch successfully",
-      totalLeads,
+      "Leads count fetched successfully",
+      totalLeads === 0 ? totalLeads.toString() : totalLeads,
       null,
       null
     );
   } catch (error) {
+    console.error("Error fetching leads count:", error);
     return ApiResponse(
       res,
       "error",
       500,
-      "Failed to fetch total leads count !",
+      "Failed to fetch total leads count!",
       null,
       error,
       null
     );
   }
 }
+
 
 module.exports = {
   createBulkLeads,
