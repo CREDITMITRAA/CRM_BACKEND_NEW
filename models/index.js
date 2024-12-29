@@ -67,4 +67,5 @@ module.exports = {
   LoanReport,
   CreditReport,
   InvalidLead,
+  WalkIn
 };

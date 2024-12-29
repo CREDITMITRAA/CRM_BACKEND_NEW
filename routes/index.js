@@ -12,6 +12,7 @@ const companyCategoryRoutes = require('./companyCategoryRoutes')
 const loanReportsRoutes = require('./loanReportRoutes')
 const creditReportRoutes = require('./creditReportRoutes')
 const dashboardRoutes = require('./dashboardRoutes')
+const walkInRoutes = require('./walkInRoutes')
 // Add more routes as needed...
 
 // Set up routes
@@ -25,6 +26,7 @@ router.use('/company-categories', companyCategoryRoutes)
 router.use('/loan-reports', loanReportsRoutes)
 router.use('/credit-reports', creditReportRoutes)
 router.use('/dashboard', dashboardRoutes)
+router.use('/walk-ins', walkInRoutes)
 // Add more routes with appropriate paths...
 
 // Export the router
