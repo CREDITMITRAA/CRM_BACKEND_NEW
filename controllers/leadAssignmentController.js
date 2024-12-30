@@ -93,6 +93,7 @@ async function getLeadsByAssignedUserId(req, res) {
       assignedBy,
       page = 1, // Default to page 1
       limit = 10, // Default to 10 leads per page
+      exclude_verification
     } = req.query;
 
     // Validate input
@@ -115,7 +116,12 @@ async function getLeadsByAssignedUserId(req, res) {
     if (email) leadFilters.email = { [Op.like]: `%${email}%` };
     if (phone) leadFilters.phone = { [Op.like]: `%${phone}%` };
     if (leadSource) leadFilters.lead_source = { [Op.like]: `%${leadSource}%` };
-    if (leadStatus) leadFilters.lead_status = {[Op.like] : `%${leadStatus}%`}
+    if (leadStatus) {
+      leadFilters.lead_status = { [Op.like]: `%${leadStatus}%` };
+    } else if (exclude_verification === 'true') {
+      // Exclude leads with status "Verification 1"
+      leadFilters.lead_status = { [Op.not]: 'Verification 1' };
+    }
 
     // Handle date filter (adjusting for UTC vs. local timezone differences)
     if (date) {
@@ -156,7 +162,7 @@ async function getLeadsByAssignedUserId(req, res) {
           model: Lead,
           as: 'Lead',
           where: leadFilters,
-          attributes: ['id', 'name', 'email', 'phone', 'lead_source', 'createdAt'],
+          attributes: ['id', 'name', 'email', 'phone', 'lead_source', 'createdAt', 'lead_status'],
           include: [
             {
               model: Activity,
