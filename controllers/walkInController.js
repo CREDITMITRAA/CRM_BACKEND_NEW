@@ -1,6 +1,7 @@
-const { Op } = require("sequelize");
+const { Op, where } = require("sequelize");
 const { WalkIn, Lead, LeadAssignment, User, sequelize } = require("../models");
 const { ApiResponse } = require("../utilities/api-responses/ApiResponse");
+const walkIn = require("../models/walkIn");
 
 async function scheduleWalkIn(req, res) {
   try {
@@ -172,8 +173,40 @@ async function updateWalkInStatus(req, res) {
   }
 }
 
+async function rescheduleWalkIn(req,res){
+    try {
+        const {walk_in_id, rescheduled_date_time, note} = req.body
+        if(!walk_in_id || !rescheduled_date_time){
+            return ApiResponse(res,'error',400,"Missing required fields !")
+        }
+
+        const rescheduledDate = new Date(rescheduled_date_time)
+        if (isNaN(rescheduledDate.getTime())) {
+            return ApiResponse(res, "error", 400, "Invalid date format", null, null, null);
+        }
+
+        const walkInFromDB = await WalkIn.findOne({
+            where: {id:walk_in_id}
+        })
+
+        if(!walkIn){
+            return ApiResponse(res,'error',400, "Walk In Not found")
+        }
+
+        walkInFromDB.is_rescheduled = true
+        walkInFromDB.rescheduled_date_time = rescheduledDate
+        walkInFromDB.walk_in_status="Rescheduled"
+        walkInFromDB.note=note
+        await walkInFromDB.save()
+        return ApiResponse(res,'success', 200, "Walk In Rescheduled Successfully.", walkIn, null,null)
+    } catch (error) {
+        return ApiResponse(res,'error',500,"Failed to reschedule walk in 1", null, error, null)
+    }
+}
+
 module.exports = {
   scheduleWalkIn,
   getWalkIns,
-  updateWalkInStatus
+  updateWalkInStatus,
+  rescheduleWalkIn
 };
