@@ -5,7 +5,7 @@ async function scheduleWalkIn(req,res){
     try {
         const {lead_id,walk_in_status,walk_in_date_time,is_rescheduled,rescheduled_date_time,note,created_by,} = req.body
 
-        if(!lead_id || !walk_in_status || !walk_in_date_time || !created_by){
+        if(!lead_id || !walk_in_date_time || !created_by){
             return ApiResponse(res, 'error', 400, "Missing required fields !")
         }
 

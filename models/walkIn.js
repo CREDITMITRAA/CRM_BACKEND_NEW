@@ -12,7 +12,8 @@ module.exports = (sequelize) => {
       type: DataTypes.INTEGER 
     },
     walk_in_status: { 
-      type: DataTypes.ENUM(...WALK_IN_STATUSES) 
+      type: DataTypes.ENUM(...WALK_IN_STATUSES),
+      defaultValue: "Upcoming"
     },
     walk_in_date_time: { 
       type: DataTypes.DATE 
