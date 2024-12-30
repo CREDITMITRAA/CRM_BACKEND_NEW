@@ -10,7 +10,12 @@ const LEAD_STATUSES = [
     "Not Working / Not Reachable",
     "Message",
     "Email",
-    "Verification 1"
+    "Verification 1",
+    "Scheduled For Walk-In",
+    "Okay for Policy",
+    "Think and get back",
+    "12 documents collected",
+    "Not okay for Policy"
 ]
 
 const VERIFICATION_STATUSES = [
@@ -39,6 +44,15 @@ const WALK_IN_STATUSES = [
     "Completed"
 ]
 
+const APPLICATION_STATUSES = [
+    "Scheduled For Walk-In",
+    "Manager 1 Approved",
+    "Manger 2 Approved",
+    "Rejected",
+    "Closed",
+    "Login"
+]
+
 module.exports = {
     LEAD_STATUSES,
     VERIFICATION_STATUSES,
@@ -46,5 +60,6 @@ module.exports = {
     ROLE_EMPLOYEE,
     ROLE_MANAGER,
     TASK_STATUSES,
-    WALK_IN_STATUSES
+    WALK_IN_STATUSES,
+    APPLICATION_STATUSES
 }

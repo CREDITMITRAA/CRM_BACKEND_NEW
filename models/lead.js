@@ -1,5 +1,5 @@
 const { DataTypes } = require('sequelize');
-const { LEAD_STATUSES, VERIFICATION_STATUSES } = require('../utilities/constants');
+const { LEAD_STATUSES, VERIFICATION_STATUSES, APPLICATION_STATUSES } = require('../utilities/constants');
 
 module.exports = (sequelize) => {
   return sequelize.define('Lead', {
@@ -17,6 +17,7 @@ module.exports = (sequelize) => {
       defaultValue: 'Under Review' // Set a default value
     },
     lead_status: { type: DataTypes.ENUM(...LEAD_STATUSES), defaultValue: 'Not Contacted' },
+    application_status : { type: DataTypes.ENUM(...APPLICATION_STATUSES) },
     status: { type: DataTypes.ENUM('active', 'inactive'), defaultValue: 'active' },
   }, { timestamps: true });
 };
