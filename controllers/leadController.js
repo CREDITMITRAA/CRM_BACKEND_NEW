@@ -17,6 +17,8 @@ const {
   ROLE_ADMIN,
   ROLE_MANAGER,
   VERIFICATION_STATUSES,
+  ROLE_EMPLOYEE,
+  LEAD_STATUSES,
 } = require("../utilities/constants");
 
 async function createBulkLeads(req, res) {
@@ -671,6 +673,35 @@ async function updateApplicationStatus(req,res){
   }
 }
 
+async function updateLeadStatus(req,res){
+  const transaction = await sequelize.transaction()
+  try {
+      const {lead_id, lead_status, role} = req.body
+
+      if(!lead_id || !lead_status || !role){
+        return ApiResponse(res, 'error', 400, "Missing required fields !")
+      }
+
+      if (role !== ROLE_EMPLOYEE) {
+        return ApiResponse(res,'error', 403, "Only Employee can change lead status !")
+      }
+
+      if(!LEAD_STATUSES.includes(lead_status)){
+        return ApiResponse(res,'error',400, "Invalid Appliation Status !")
+      }
+
+      const updatedLead = await LeadServices.updateLead(lead_id,{lead_status}, transaction)
+
+      await transaction.commit()
+
+      return ApiResponse(res, 'success', 200, "Lead with new lead status updated successfully.", updatedLead, null, null)
+  } catch (error) {
+    if(transaction) await transaction.rollback()
+    console.log(error);
+    return ApiResponse(res,'error', 500, "Failed to update lead status !", null, error, null)
+  }
+}
+
 module.exports = {
   createBulkLeads,
   getAllLeadsWithPagination,
@@ -678,5 +709,6 @@ module.exports = {
   updateLeadReportsActivities,
   updateVerificationStatus,
   getTotalLeadsCount,
-  updateApplicationStatus
+  updateApplicationStatus,
+  updateLeadStatus
 };
