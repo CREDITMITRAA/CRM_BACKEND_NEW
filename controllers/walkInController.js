@@ -1,6 +1,7 @@
 const { Op, where } = require("sequelize");
 const { WalkIn, Lead, LeadAssignment, User, sequelize } = require("../models");
 const { ApiResponse } = require("../utilities/api-responses/ApiResponse");
+const moment = require("moment-timezone");
 const walkIn = require("../models/walkIn");
 
 async function scheduleWalkIn(req, res) {
@@ -202,9 +203,86 @@ async function rescheduleWalkIn(req,res){
     }
 }
 
+async function getWalkInsCount(req, res) {
+  try {
+    const { created_by } = req.query;
+
+    // Define IST timezone
+    const IST_TIMEZONE = "Asia/Kolkata";
+
+    // Get the current IST time
+    const nowIST = moment().tz(IST_TIMEZONE);
+
+    // Get the start and end of today in IST
+    const startOfTodayIST = nowIST.clone().startOf("day");
+    const endOfTodayIST = nowIST.clone().endOf("day");
+
+    // Convert IST times to UTC for querying
+    const startOfTodayUTC = startOfTodayIST.utc().format("YYYY-MM-DD HH:mm:ss");
+    const endOfTodayUTC = endOfTodayIST.utc().format("YYYY-MM-DD HH:mm:ss");
+
+    // Base filter for created_by
+    const whereClause = {};
+    if (created_by) {
+      whereClause.created_by = created_by;
+    }
+
+    // Get total walk-ins
+    const totalWalkIns = await WalkIn.count({
+      where: {
+        ...whereClause,
+        [Op.or]: [
+          { is_rescheduled: true, rescheduled_date_time: { [Op.ne]: null } },
+          { is_rescheduled: false },
+        ],
+      },
+    });
+
+    // Get today's walk-ins using IST-based UTC times
+    const todayWalkIns = await WalkIn.count({
+      where: {
+        ...whereClause,
+        [Op.or]: [
+          {
+            is_rescheduled: true,
+            rescheduled_date_time: {
+              [Op.between]: [startOfTodayUTC, endOfTodayUTC],
+            },
+          },
+          {
+            is_rescheduled: false,
+            walk_in_date_time: {
+              [Op.between]: [startOfTodayUTC, endOfTodayUTC],
+            },
+          },
+        ],
+      },
+    });
+
+    return ApiResponse(
+      res,
+      "success",
+      200,
+      "Walk-In counts fetched successfully",
+      { totalWalkIns, todayWalkIns }
+    );
+  } catch (error) {
+    console.error("Error fetching walk-in counts:", error);
+    return ApiResponse(
+      res,
+      "error",
+      500,
+      "Failed to fetch Walk-Ins Count!",
+      null,
+      error
+    );
+  }
+}
+
 module.exports = {
   scheduleWalkIn,
   getWalkIns,
   updateWalkInStatus,
-  rescheduleWalkIn
+  rescheduleWalkIn,
+  getWalkInsCount
 };
