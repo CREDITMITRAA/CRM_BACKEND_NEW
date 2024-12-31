@@ -19,6 +19,7 @@ const LEAD_STATUSES = [
 ]
 
 const VERIFICATION_STATUSES = [
+    "Scheduled For Walk-In",
     "Verification 1",
     "Under Review",
     "On Hold",

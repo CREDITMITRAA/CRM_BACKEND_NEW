@@ -4,6 +4,7 @@ const { ApiResponse } = require("../utilities/api-responses/ApiResponse");
 const walkIn = require("../models/walkIn");
 
 async function scheduleWalkIn(req, res) {
+  const transaction = await sequelize.transaction()
   try {
     const {
       lead_id,
@@ -19,6 +20,14 @@ async function scheduleWalkIn(req, res) {
       return ApiResponse(res, "error", 400, "Missing required fields !");
     }
 
+    const lead = await Lead.findByPk(lead_id, {transaction})
+    if (!lead) {
+      await transaction.rollback();
+      return ApiResponse(res, "error", 400, "Lead not found!");
+    }
+
+    await lead.update({ lead_status: "Scheduled For Walk-In", verification_status: "Scheduled For Walk-In" }, { transaction });
+
     const savedWalkIn = await WalkIn.create({
       lead_id,
       walk_in_status,
@@ -27,28 +36,17 @@ async function scheduleWalkIn(req, res) {
       rescheduled_date_time,
       note,
       created_by,
-    });
+     },
+     {transaction}
+  );
 
-    return ApiResponse(
-      res,
-      "success",
-      201,
-      "Walk In scheduled successfully.",
-      savedWalkIn,
-      null,
-      null
-    );
+    await transaction.commit()
+
+    return ApiResponse(res,"success",201,"Walk In scheduled successfully.",savedWalkIn,null,null);
   } catch (error) {
+    if (transaction) await transaction.rollback();
     console.log(error);
-    return ApiResponse(
-      res,
-      "error",
-      500,
-      "Failed to schedule a walk in !",
-      null,
-      error,
-      null
-    );
+    return ApiResponse(res,"error",500,"Failed to schedule a walk in !",null,error,null);
   }
 }
 
