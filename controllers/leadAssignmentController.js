@@ -7,6 +7,7 @@ const {
   Activity,
 } = require("../models"); // Adjust paths as needed
 const { ApiResponse } = require("../utilities/api-responses/ApiResponse");
+const { INITIAL_LEAD_STATUSES } = require("../utilities/constants");
 
 async function assignLeadsToEmployee(req, res) {
   const transaction = await sequelize.transaction();
@@ -120,7 +121,7 @@ async function getLeadsByAssignedUserId(req, res) {
       leadFilters.lead_status = { [Op.like]: `%${leadStatus}%` };
     } else if (exclude_verification === 'true') {
       // Exclude leads with status "Verification 1"
-      leadFilters.lead_status = { [Op.not]: 'Verification 1' };
+      leadFilters.lead_status = { [Op.in]: [...INITIAL_LEAD_STATUSES] };
     }
 
     // Handle date filter (adjusting for UTC vs. local timezone differences)
@@ -198,6 +199,7 @@ async function getLeadsByAssignedUserId(req, res) {
       email: assignment.Lead.email,
       phone: assignment.Lead.phone,
       leadSource: assignment.Lead.lead_source,
+      leadStatus: assignment.Lead.lead_status,
       importedOn: assignment.Lead.createdAt,
       assignedAt: assignment.createdAt,
       assignedBy: {

@@ -1,3 +1,17 @@
+const INITIAL_LEAD_STATUSES = [
+    "Not Contacted",
+    'Interested',
+    "Follow Up",
+    "Call Back",
+    "RNR ( Ring No Response )",
+    "Switched Off",
+    "Busy",
+    "Not Interested",
+    "Not Working / Not Reachable",
+    "Message",
+    "Email",
+]
+
 const LEAD_STATUSES = [
     "Not Contacted",
     'Interested',
@@ -62,5 +76,6 @@ module.exports = {
     ROLE_MANAGER,
     TASK_STATUSES,
     WALK_IN_STATUSES,
-    APPLICATION_STATUSES
+    APPLICATION_STATUSES,
+    INITIAL_LEAD_STATUSES
 }
