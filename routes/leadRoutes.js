@@ -8,5 +8,6 @@ router.get('/get-lead-by-id/:leadId', leadController.getLeadById)
 router.post('/update-lead-reports-activity', leadController.updateLeadReportsActivities)
 router.post('/update-verification-status', leadController.updateVerificationStatus)
 router.get('/get-total-leads-count', leadController.getTotalLeadsCount)
+router.post('/update-application-status', leadController.updateApplicationStatus)
 
 module.exports = router

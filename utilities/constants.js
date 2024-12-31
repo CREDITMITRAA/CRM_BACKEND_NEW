@@ -48,7 +48,7 @@ const WALK_IN_STATUSES = [
 const APPLICATION_STATUSES = [
     "Scheduled For Walk-In",
     "Manager 1 Approved",
-    "Manger 2 Approved",
+    "Manager 2 Approved",
     "Rejected",
     "Closed",
     "Login"

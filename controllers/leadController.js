@@ -632,6 +632,45 @@ async function getTotalLeadsCount(req, res) {
   }
 }
 
+async function updateApplicationStatus(req,res){
+  const transaction = await sequelize.transaction()
+  try {
+    const {lead_id, application_status, lead_status, role} = req.body
+
+    if(!lead_id || !application_status || !lead_status || !role){
+      return ApiResponse(res, 'error', 400, "Missing required fields !")
+    }
+
+    if (role !== ROLE_ADMIN && role !== ROLE_MANAGER) {
+      return ApiResponse(res,'error', 403, "Unauthorized Access !")
+    }
+
+    const validApplicationStatuses = [
+      "Manager 1 Approved",
+      "Manager 2 Approved",
+      "Rejected",
+      "Closed",
+      "Login"
+    ]
+
+    if(!validApplicationStatuses.includes(application_status)){
+      return ApiResponse(res,'error',400, "Invalid Appliation Status !")
+    }
+
+    if(lead_status !== "12 documents collected"){
+      return ApiResponse(res, 'error', 400, "Application Status Cannot Updated Now !")
+    }
+
+    const updatedLead = await LeadServices.updateLead(lead_id,{application_status},transaction)
+    await transaction.commit()
+    return ApiResponse(res, 'success', 200, "Lead updated with application status successfully.", updatedLead, null,null)
+  } catch (error) {
+    if(transaction) await transaction.rollback()
+    console.log(error);
+    return ApiResponse(res,'error', 500, "Failed to update application status !", null,error,null)
+  }
+}
+
 module.exports = {
   createBulkLeads,
   getAllLeadsWithPagination,
@@ -639,4 +678,5 @@ module.exports = {
   updateLeadReportsActivities,
   updateVerificationStatus,
   getTotalLeadsCount,
+  updateApplicationStatus
 };
