@@ -637,7 +637,7 @@ async function getTotalLeadsCount(req, res) {
 async function updateApplicationStatus(req,res){
   const transaction = await sequelize.transaction()
   try {
-    const {lead_id, application_status, lead_status, role} = req.body
+    const {lead_id, application_status, lead_status, role, rejection_reason} = req.body
 
     if(!lead_id || !application_status || !lead_status || !role){
       return ApiResponse(res, 'error', 400, "Missing required fields !")
@@ -663,7 +663,17 @@ async function updateApplicationStatus(req,res){
       return ApiResponse(res, 'error', 400, "Application Status Cannot Updated Now !")
     }
 
-    const updatedLead = await LeadServices.updateLead(lead_id,{application_status},transaction)
+    const updateData = {application_status}
+
+    if(application_status === "Rejected"){
+      if(!rejection_reason){
+        return ApiResponse(res, 'error', 400, "Rejection reason is required !")
+      }
+      updateData.is_rejected = true
+      updateData.rejection_reason = rejection_reason
+    }
+
+    const updatedLead = await LeadServices.updateLead(lead_id,updateData,transaction)
     await transaction.commit()
     return ApiResponse(res, 'success', 200, "Lead updated with application status successfully.", updatedLead, null,null)
   } catch (error) {
