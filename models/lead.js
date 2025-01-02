@@ -18,6 +18,8 @@ module.exports = (sequelize) => {
     },
     lead_status: { type: DataTypes.ENUM(...LEAD_STATUSES), defaultValue: 'Not Contacted' },
     application_status : { type: DataTypes.ENUM(...APPLICATION_STATUSES) },
+    is_rejected: { type: DataTypes.BOOLEAN, defaultValue: false },
+    rejection_reason: { type: DataTypes.TEXT },
     status: { type: DataTypes.ENUM('active', 'inactive'), defaultValue: 'active' },
   }, { timestamps: true });
 };
