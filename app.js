@@ -18,6 +18,7 @@ app.use(bodyParser.urlencoded({ extended: true })); // Parse URL-encoded data
 // app.use(morgan('dev')); // Log HTTP requests
 app.use(cors({
   origin: 'http://localhost:3001',  // Your frontend URL
+  // origin: 'http://35.154.178.68',  // Your frontend URL for PRODUCTION
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   credentials: true,  // Allow credentials (cookies, tokens)
 }));

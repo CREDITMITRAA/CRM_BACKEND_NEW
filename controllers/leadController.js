@@ -396,7 +396,7 @@ async function updateLeadReportsActivities(req, res) {
     }
 
     // Validate role and application_status
-    if (role !== ROLE_ADMIN && role !== ROLE_MANAGER) {
+    if (application_status && role !== ROLE_ADMIN && role !== ROLE_MANAGER) {
       await transaction.rollback();
       return ApiResponse(res, "error", 403, "Unauthorized Access!");
     }
