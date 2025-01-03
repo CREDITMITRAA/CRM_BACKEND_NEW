@@ -467,6 +467,11 @@ async function updateLeadReportsActivities(req, res) {
     // 5. Add Activity if provided
     if (activity) {
       createdActivity = await ActivityServices.addActivity(activity, transaction);
+      if(activity.activity_status === "Verification 1"){
+        await LeadServices.updateLead(leadId, {lead_status:activity.activity_status, verification_status:activity.activity_status}, transaction)
+      }else{
+        await LeadServices.updateLead(leadId, {lead_status:activity.activity_status}, transaction)
+      } 
     }
 
     // Commit the transaction after all operations
