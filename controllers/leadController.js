@@ -189,6 +189,7 @@ async function getAllLeadsWithPagination(req, res) {
       assigned_to,
       lead_status,
       assigned_to_name,
+      application_status
     } = req.query;
 
     // const limit = parseInt(req.query.limit) || 50;
@@ -216,6 +217,11 @@ async function getAllLeadsWithPagination(req, res) {
       whereConditions.lead_status = {
         [Op.like]: `%${lead_status}%`, // Use Op.iLike for case-insensitivity if supported
       };
+    }
+    if(application_status){
+      whereConditions.application_status = {
+        [Op.like]: `%${application_status}%`, // Use Op.iLike for case-insensitivity
+      }
     }
 
     if (importedOn) {
