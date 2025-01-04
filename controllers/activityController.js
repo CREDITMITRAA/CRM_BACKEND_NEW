@@ -39,13 +39,14 @@ async function addActivity(req, res) {
     if (leadId) {
       existingActivity = await Activity.findOne({
         where: { lead_id: leadId },
+        order: [['id', 'DESC']],
         transaction,
       });
     }
 
     // Calculate new docsCollected based on existing and new values
     let newDocsCollected = docsCollected;
-    if (existingActivity && existingActivity.docs_collected > 0) {
+    if (existingActivity && existingActivity.docs_collected === true) {
       newDocsCollected = existingActivity.docs_collected;
     }
 
