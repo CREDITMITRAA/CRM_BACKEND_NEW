@@ -1,4 +1,5 @@
 const { Op } = require("sequelize");
+const moment = require("moment-timezone");
 const {
   sequelize,
   LeadAssignment,
@@ -125,18 +126,33 @@ async function getLeadsByAssignedUserId(req, res) {
     }
 
     // Handle date filter (adjusting for UTC vs. local timezone differences)
-    if (date) {
-      const importedDate = new Date(date);
-      const startOfDay = new Date(importedDate.setHours(0, 0, 0, 0));
-      const endOfDay = new Date(importedDate.setHours(23, 59, 59, 999));
-      leadFilters.createdAt = { [Op.between]: [startOfDay, endOfDay] };
-    }
+    // if (date) {
+    //   const importedDate = new Date(date);
+    //   const startOfDay = new Date(importedDate.setHours(0, 0, 0, 0));
+    //   const endOfDay = new Date(importedDate.setHours(23, 59, 59, 999));
+    //   leadFilters.createdAt = { [Op.between]: [startOfDay, endOfDay] };
+    // }
 
     const activityFilters = {};
     if (docsCollected !== undefined) activityFilters.docs_collected = docsCollected === '1';
 
     const leadAssignmentFilters = { assigned_to: userId };
     if (assignedBy) leadAssignmentFilters.assigned_by = assignedBy;
+    if(date){
+      const startOfDayUTC = moment
+              .tz(date, "Asia/Kolkata")
+              .startOf("day")
+              .utc()
+              .toDate();
+            const endOfDayUTC = moment
+              .tz(date, "Asia/Kolkata")
+              .endOf("day")
+              .utc()
+              .toDate();
+              leadAssignmentFilters.createdAt = {
+              [Op.between]: [startOfDayUTC, endOfDayUTC],
+            };
+    }
 
     // Step 1: Fetch the total count of leads without activities to avoid inflated count due to join
     const { count } = await LeadAssignment.findAndCountAll({
