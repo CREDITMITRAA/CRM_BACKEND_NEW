@@ -186,50 +186,48 @@ async function getChartsData(req, res) {
           FROM 
               walkins
           WHERE 
-              status = 'active' 
-              AND CONVERT_TZ(createdAt, '+00:00', '+05:30') >= CURDATE() 
-              AND CONVERT_TZ(createdAt, '+00:00', '+05:30') < CURDATE() + INTERVAL 1 DAY
+              status = 'active'
+              AND CONVERT_TZ(createdAt, '+00:00', '+05:30') >= DATE(CONVERT_TZ(NOW(), '+00:00', '+05:30'))
+              AND CONVERT_TZ(createdAt, '+00:00', '+05:30') < DATE(CONVERT_TZ(NOW(), '+00:00', '+05:30')) + INTERVAL 1 DAY
           GROUP BY 
               created_by
       ) AS aggregated_data ON users.created_by = aggregated_data.created_by;
-  `);
+    `);
+    
     const walkins_scheduled_today =
       walkinsScheduledToday[0]?.walkins_today || [];
 
     // NO OF WALKINS TODAY
-    const [walkinsToday] = await sequelize.query(
-      `
-        SELECT 
-    JSON_ARRAYAGG(
-        JSON_OBJECT('created_by', walkins.created_by, 'count', COALESCE(walkin_count, 0))
-    ) AS walkins_today
-FROM 
-    (SELECT DISTINCT created_by FROM walkins) AS walkins
-LEFT JOIN (
-    SELECT 
-        created_by, 
-        COUNT(*) AS walkin_count
-    FROM 
-        walkins
-    WHERE 
-        status = 'active' 
-        AND (
-            -- Check if is_rescheduled is true, and use rescheduled_date_time first
-            (is_rescheduled = 1 AND rescheduled_date_time IS NOT NULL AND 
-            CONVERT_TZ(rescheduled_date_time, '+00:00', '+05:30') >= CURDATE() 
-            AND CONVERT_TZ(rescheduled_date_time, '+00:00', '+05:30') < CURDATE() + INTERVAL 1 DAY)
-            OR
-            -- Otherwise, use walk_in_date_time
-            (is_rescheduled = 0 OR rescheduled_date_time IS NULL) AND 
-            CONVERT_TZ(walk_in_date_time, '+00:00', '+05:30') >= CURDATE() 
-            AND CONVERT_TZ(walk_in_date_time, '+00:00', '+05:30') < CURDATE() + INTERVAL 1 DAY
-        )
-    GROUP BY 
-        created_by
-) AS aggregated_data 
-ON walkins.created_by = aggregated_data.created_by;
-      `
-    );
+    const [walkinsToday] = await sequelize.query(`
+      SELECT 
+          JSON_ARRAYAGG(
+              JSON_OBJECT('created_by', walkins.created_by, 'count', COALESCE(walkin_count, 0))
+          ) AS walkins_today
+      FROM 
+          (SELECT DISTINCT created_by FROM walkins) AS walkins
+      LEFT JOIN (
+          SELECT 
+              created_by, 
+              COUNT(*) AS walkin_count
+          FROM 
+              walkins
+          WHERE 
+              status = 'active' 
+              AND (
+                  -- Check if is_rescheduled is true, and use rescheduled_date_time first
+                  (is_rescheduled = 1 AND rescheduled_date_time IS NOT NULL AND 
+                  DATE(CONVERT_TZ(rescheduled_date_time, '+00:00', '+05:30')) = DATE(CONVERT_TZ(NOW(), '+00:00', '+05:30')))
+                  OR
+                  -- Otherwise, use walk_in_date_time
+                  (is_rescheduled = 0 OR rescheduled_date_time IS NULL) AND 
+                  DATE(CONVERT_TZ(walk_in_date_time, '+00:00', '+05:30')) = DATE(CONVERT_TZ(NOW(), '+00:00', '+05:30'))
+              )
+          GROUP BY 
+              created_by
+      ) AS aggregated_data 
+      ON walkins.created_by = aggregated_data.created_by;
+    `);
+    
     const walkins_today = walkinsToday[0]?.walkins_today || [];
 
     let data = {

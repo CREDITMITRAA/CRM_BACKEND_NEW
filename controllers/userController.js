@@ -225,11 +225,29 @@ async function getUsersByName(req,res){
       return ApiResponse(res, 'error', 500, "Failed to fetch users with matching name !", null, error, null)
   }
 }
+
+async function getUsersNameAndId(req, res) {
+  try {
+    const users = await User.findAll({
+      attributes: ['id', 'name'],
+      where: {
+        status: 'active',
+      },
+    });
+    ApiResponse(res, "success", 200, "Users fetched successfully", users);
+  } catch (err) {
+    ApiResponse(res, "error", 500, "Failed to fetch users", null, {
+      message: err.message,
+    });
+  }
+}
+
 module.exports = {
   getAllUsers,
   getUserById,
   createUser,
   updateUser,
   deleteUserByUserId,
-  getUsersByName
+  getUsersByName,
+  getUsersNameAndId
 };
