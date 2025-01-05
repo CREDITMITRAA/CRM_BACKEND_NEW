@@ -114,7 +114,7 @@ async function getChartsData(req, res) {
               created_by, 
               COUNT(*) AS activity_count
           FROM 
-              crm.activities
+              crm.Activities
           WHERE 
               status = 'active'
           GROUP BY 
@@ -136,7 +136,7 @@ async function getChartsData(req, res) {
               created_by, 
               COUNT(*) AS activity_count
           FROM 
-              crm.activities
+              crm.Activities
           WHERE 
               status = 'active'
               AND activity_status NOT IN ('Not Contacted', 'RNR ( Ring No Response )', 'Switched Off', 'Busy', 'Not Working / Not Reachable')
@@ -159,7 +159,7 @@ async function getChartsData(req, res) {
               created_by, 
               COUNT(*) AS activity_count
           FROM 
-              crm.activities
+              crm.Activities
           WHERE 
               status = 'active'
               AND activity_status = 'Interested'
@@ -177,14 +177,14 @@ async function getChartsData(req, res) {
               JSON_OBJECT('created_by', users.created_by, 'count', COALESCE(walkin_count, 0))
           ) AS walkins_today
       FROM (
-          SELECT DISTINCT created_by FROM walkins
+          SELECT DISTINCT created_by FROM crm.WalkIns
       ) AS users
       LEFT JOIN (
           SELECT 
               created_by, 
               COUNT(*) AS walkin_count
           FROM 
-              walkins
+              crm.WalkIns
           WHERE 
               status = 'active'
               AND CONVERT_TZ(createdAt, '+00:00', '+05:30') >= DATE(CONVERT_TZ(NOW(), '+00:00', '+05:30'))
@@ -204,13 +204,13 @@ async function getChartsData(req, res) {
               JSON_OBJECT('created_by', walkins.created_by, 'count', COALESCE(walkin_count, 0))
           ) AS walkins_today
       FROM 
-          (SELECT DISTINCT created_by FROM walkins) AS walkins
+          (SELECT DISTINCT created_by FROM crm.WalkIns) AS walkins
       LEFT JOIN (
           SELECT 
               created_by, 
               COUNT(*) AS walkin_count
           FROM 
-              walkins
+              crm.WalkIns
           WHERE 
               status = 'active' 
               AND (
