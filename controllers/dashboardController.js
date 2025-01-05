@@ -102,6 +102,41 @@ const getDashboardData = async (req, res) => {
 
 async function getChartsData(req, res) {
   try {
+    const { date } = req.query;
+    const dateFilter = date
+      ? `AND DATE(CONVERT_TZ(createdAt, '+00:00', '+05:30')) = '${date}'`
+      : "";
+
+    const dateConditionForWalkInScheduledToday = date
+      ? `
+    CONVERT_TZ(createdAt, '+00:00', '+05:30') >= '${date}' 
+    AND CONVERT_TZ(createdAt, '+00:00', '+05:30') < DATE_ADD('${date}', INTERVAL 1 DAY)
+  `
+      : `
+    CONVERT_TZ(createdAt, '+00:00', '+05:30') >= DATE(CONVERT_TZ(NOW(), '+00:00', '+05:30')) 
+    AND CONVERT_TZ(createdAt, '+00:00', '+05:30') < DATE(CONVERT_TZ(NOW(), '+00:00', '+05:30')) + INTERVAL 1 DAY
+  `;
+
+  const dateConditionForWalkInsToday = date
+  ? `
+      (
+        (is_rescheduled = 1 AND rescheduled_date_time IS NOT NULL AND 
+        DATE(CONVERT_TZ(rescheduled_date_time, '+00:00', '+05:30')) = '${date}')
+        OR
+        (is_rescheduled = 0 OR rescheduled_date_time IS NULL) AND 
+        DATE(CONVERT_TZ(walk_in_date_time, '+00:00', '+05:30')) = '${date}'
+      )
+    `
+  : `
+      (
+        (is_rescheduled = 1 AND rescheduled_date_time IS NOT NULL AND 
+        DATE(CONVERT_TZ(rescheduled_date_time, '+00:00', '+05:30')) = DATE(CONVERT_TZ(NOW(), '+00:00', '+05:30')))
+        OR
+        (is_rescheduled = 0 OR rescheduled_date_time IS NULL) AND 
+        DATE(CONVERT_TZ(walk_in_date_time, '+00:00', '+05:30')) = DATE(CONVERT_TZ(NOW(), '+00:00', '+05:30'))
+      )
+    `;
+
     // NO OF CALLS DONE
     const [callsDoneData] = await sequelize.query(
       `
@@ -117,6 +152,7 @@ async function getChartsData(req, res) {
               crm.Activities
           WHERE 
               status = 'active'
+              ${dateFilter} -- Add date filter dynamically
           GROUP BY 
               created_by
       ) AS aggregated_data;
@@ -140,6 +176,7 @@ async function getChartsData(req, res) {
           WHERE 
               status = 'active'
               AND activity_status NOT IN ('Not Contacted', 'RNR ( Ring No Response )', 'Switched Off', 'Busy', 'Not Working / Not Reachable')
+              ${dateFilter} -- Add date filter dynamically
           GROUP BY 
               created_by
       ) AS aggregated_data;
@@ -163,6 +200,7 @@ async function getChartsData(req, res) {
           WHERE 
               status = 'active'
               AND activity_status = 'Interested'
+              ${dateFilter} -- Add date filter dynamically
           GROUP BY 
               created_by
       ) AS aggregated_data;
@@ -187,13 +225,12 @@ async function getChartsData(req, res) {
               crm.WalkIns
           WHERE 
               status = 'active'
-              AND CONVERT_TZ(createdAt, '+00:00', '+05:30') >= DATE(CONVERT_TZ(NOW(), '+00:00', '+05:30'))
-              AND CONVERT_TZ(createdAt, '+00:00', '+05:30') < DATE(CONVERT_TZ(NOW(), '+00:00', '+05:30')) + INTERVAL 1 DAY
+              AND ${dateConditionForWalkInScheduledToday} -- Dynamically apply date filter
           GROUP BY 
               created_by
       ) AS aggregated_data ON users.created_by = aggregated_data.created_by;
     `);
-    
+
     const walkins_scheduled_today =
       walkinsScheduledToday[0]?.walkins_today || [];
 
@@ -213,21 +250,13 @@ async function getChartsData(req, res) {
               crm.WalkIns
           WHERE 
               status = 'active' 
-              AND (
-                  -- Check if is_rescheduled is true, and use rescheduled_date_time first
-                  (is_rescheduled = 1 AND rescheduled_date_time IS NOT NULL AND 
-                  DATE(CONVERT_TZ(rescheduled_date_time, '+00:00', '+05:30')) = DATE(CONVERT_TZ(NOW(), '+00:00', '+05:30')))
-                  OR
-                  -- Otherwise, use walk_in_date_time
-                  (is_rescheduled = 0 OR rescheduled_date_time IS NULL) AND 
-                  DATE(CONVERT_TZ(walk_in_date_time, '+00:00', '+05:30')) = DATE(CONVERT_TZ(NOW(), '+00:00', '+05:30'))
-              )
+              AND ${dateConditionForWalkInsToday} -- Apply dynamic date condition here
           GROUP BY 
               created_by
       ) AS aggregated_data 
       ON walkins.created_by = aggregated_data.created_by;
     `);
-    
+
     const walkins_today = walkinsToday[0]?.walkins_today || [];
 
     let data = {
