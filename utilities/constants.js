@@ -10,6 +10,7 @@ const INITIAL_LEAD_STATUSES = [
     "Not Working / Not Reachable",
     "Message",
     "Email",
+    "Not Possible"
 ]
 
 const LEAD_STATUSES = [
@@ -29,7 +30,8 @@ const LEAD_STATUSES = [
     "Okay for Policy",
     "Think and get back",
     "12 documents collected",
-    "Not okay for Policy"
+    "Not okay for Policy",
+    "Not Possible"
 ]
 
 const VERIFICATION_STATUSES = [
