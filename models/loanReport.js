@@ -9,6 +9,7 @@ module.exports = (sequelize) => {
     loan_type: { type: DataTypes.STRING },
     emi: { type: DataTypes.DECIMAL(10, 2) },
     outstanding: { type: DataTypes.DECIMAL(15, 2) },
-    status: { type: DataTypes.ENUM('active', 'inactive'), defaultValue: 'active' },
+    status: { type: DataTypes.ENUM('active', 'inactive', 'deleted'), defaultValue: 'active' },
+    updated_by: {type: DataTypes.INTEGER}
   }, { timestamps: true });
 };
