@@ -10,6 +10,7 @@ const LoanReport = require("./loanReport")(sequelize);
 const CreditReport = require("./creditReport")(sequelize);
 const InvalidLead = require("./invalidLead")(sequelize);
 const WalkIn = require("./walkIn")(sequelize);
+const LeadDocument = require("./leadDocument")(sequelize)
 
 // Define Relationships
 // User.belongsToMany(Role, { through: UserRole });
@@ -55,6 +56,16 @@ WalkIn.belongsTo(Lead, {
   as: "lead", // Alias for the association
 });
 
+Lead.hasMany(LeadDocument,{
+  foreignKey: 'lead_id',
+  as: 'documents'
+})
+
+LeadDocument.belongsTo(Lead, {
+  foreignKey:'lead_id',
+  as: 'lead'
+})
+
 module.exports = {
   sequelize,
   User,
@@ -67,5 +78,6 @@ module.exports = {
   LoanReport,
   CreditReport,
   InvalidLead,
-  WalkIn
+  WalkIn,
+  LeadDocument
 };
