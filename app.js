@@ -40,7 +40,7 @@ app.use((req, res, next) => {
 // Error handling middleware for server errors
 app.use((err, req, res, next) => {
   console.error(err.stack);
-  ApiResponse.ApiResponse(
+  ApiResponse(
     res,
     'error',
     500,

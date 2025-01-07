@@ -70,6 +70,8 @@ const APPLICATION_STATUSES = [
     "Login"
 ]
 
+const S3_BUCKET_NAME = "crm-creditmitra"
+
 module.exports = {
     LEAD_STATUSES,
     VERIFICATION_STATUSES,
@@ -79,5 +81,6 @@ module.exports = {
     TASK_STATUSES,
     WALK_IN_STATUSES,
     APPLICATION_STATUSES,
-    INITIAL_LEAD_STATUSES
+    INITIAL_LEAD_STATUSES,
+    S3_BUCKET_NAME
 }
