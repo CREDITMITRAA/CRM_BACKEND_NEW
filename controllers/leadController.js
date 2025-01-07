@@ -60,10 +60,10 @@ async function createBulkLeads(req, res) {
       let reason = "";
 
       // Check for duplicate phone and email
-      if (phoneSet.has(lead.phone)) {
+      if (validatePhone && phoneSet.has(lead.phone)) {
         isValid = false;
         reason = "duplicate phone";
-      } else if (emailSet.has(lead.email)) {
+      } else if (validateEmail && emailSet.has(lead.email)) {
         isValid = false;
         reason = "duplicate email";
       }
@@ -86,8 +86,8 @@ async function createBulkLeads(req, res) {
           invalidLeads.push({ ...lead, reason: "Invalid source" });
         } else {
           validLeads.push(lead);
-          phoneSet.add(lead.phone); // Track unique phone numbers
-          emailSet.add(lead.email); // Track unique emails
+          if(validatePhone) phoneSet.add(lead.phone); // Track unique phone numbers
+          if(validateEmail) emailSet.add(lead.email); // Track unique emails
         }
       } else {
         invalidLeads.push({ ...lead, reason: `Duplicate ${reason}` });
