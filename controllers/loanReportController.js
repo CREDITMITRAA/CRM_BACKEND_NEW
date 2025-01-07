@@ -25,7 +25,7 @@ async function getLoanReportsByLeadId(req, res) {
 
     // Fetch the loan reports for the valid leadId
     const loanReports = await LoanReport.findAll({
-      where: { lead_id: validLeadId },
+      where: { lead_id: validLeadId, status:'active' },
     });
 
     return ApiResponse(
