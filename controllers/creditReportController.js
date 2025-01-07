@@ -24,7 +24,7 @@ async function getCreditReportsByLeadId(req, res) {
 
     // Fetch credit reports for the valid leadId
     const creditReports = await CreditReport.findAll({
-      where: { lead_id: validLeadId },
+      where: { lead_id: validLeadId, status:'active' },
     });
 
     return ApiResponse(

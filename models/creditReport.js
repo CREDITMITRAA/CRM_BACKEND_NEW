@@ -7,6 +7,7 @@ module.exports = (sequelize) => {
     credit_card_name: { type: DataTypes.STRING },
     total_outstanding: { type: DataTypes.DECIMAL(15, 2) },
     status: { type: DataTypes.ENUM('active', 'inactive', 'deleted'), defaultValue: 'active' },
-    updated_by: {type: DataTypes.INTEGER}
+    updated_by: {type: DataTypes.INTEGER},
+    created_by: {type: DataTypes.INTEGER}
   }, { timestamps: true });
 };
