@@ -120,8 +120,36 @@ async function deleteCreditReportById(req, res) {
   }
 }
 
+async function deleteCreditReport(req,res){
+  try {
+    const {updated_by, id} = req.body
+    if (!id) {
+      return ApiResponse(res, 'error', 400, "Id is required!");
+    }
+
+    if (!updated_by) {
+      return ApiResponse(res, 'error', 400, "Updated by ID is required!");
+    }
+    // Attempt to perform a soft delete by updating the status and updated_by
+    const [updatedCount] = await CreditReport.update(
+      { status: 'deleted', updated_by: updated_by },
+      { where: { id } }
+    );
+    if (updatedCount === 0) {
+      // No record was updated, meaning the record does not exist
+      return ApiResponse(res, 'error', 404, "Loan Report Not Found!");
+    }
+
+    // Record was successfully updated (soft deleted)
+    return ApiResponse(res, 'success', 200, "Credit Report Soft Deleted Successfully!");
+  } catch (error) {
+    return ApiResponse(res,'error', 500, "Failed to Delete Credit Report !", null, error, null)
+  }
+}
+
 module.exports = {
   getCreditReportsByLeadId,
   getAllCreditReports,
-  deleteCreditReportById
+  deleteCreditReportById,
+  deleteCreditReport
 };
