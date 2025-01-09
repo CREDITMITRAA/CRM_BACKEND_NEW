@@ -52,7 +52,7 @@ async function uploadFile(req, res) {
     };
 
     // Save the record in the database
-    await addLeadDocument(leadDocumentData, transaction);
+    const addedLeadDocument = await addLeadDocument(leadDocumentData, transaction);
 
     // Commit the transaction
     await transaction.commit();
@@ -63,7 +63,7 @@ async function uploadFile(req, res) {
       "success",
       201,
       "File Uploaded successfully!",
-      { fileData: data, dbData: leadDocumentData },
+      { fileData: data, dbData: addedLeadDocument },
       null,
       null
     );

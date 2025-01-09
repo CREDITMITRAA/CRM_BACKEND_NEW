@@ -71,7 +71,37 @@ async function getLeadDocumentsByLeadId(req, res) {
   }
 }
 
+async function deleteLeadDocument(req,res){
+  try {
+    const {lead_document_id, updated_by} = req.body
+
+    if (!lead_document_id) {
+      return ApiResponse(res, 'error', 400, "Id is required!");
+    }
+
+    // if (!updated_by) {
+    //   return ApiResponse(res, 'error', 400, "Updated by ID is required!");
+    // }
+
+    const [updatedCount] = await LeadDocument.update(
+      { status: 'deleted', updated_by: updated_by },
+      { where: { id:lead_document_id } }
+    );
+
+    if (updatedCount === 0) {
+      // No record was updated, meaning the record does not exist
+      return ApiResponse(res, 'error', 404, "Lead Document Not Found!");
+    }
+
+    // Record was successfully updated (soft deleted)
+    return ApiResponse(res, 'success', 200, "Lead Document Soft Deleted Successfully!");
+  } catch (error) {
+    return ApiResponse(res, 'error', 500, "Failed to delete lead document !", null, error, null)
+  }
+}
+
 module.exports = {
   addLeadDocuments,
-  getLeadDocumentsByLeadId
+  getLeadDocumentsByLeadId,
+  deleteLeadDocument
 };

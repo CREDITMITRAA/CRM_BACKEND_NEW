@@ -7,6 +7,6 @@ module.exports = (sequelize) => {
         document_url : { type: DataTypes.STRING },
         document_type : { type: DataTypes.STRING },
         document_name : { type: DataTypes.STRING },
-        status:{ type: DataTypes.ENUM('active', 'inactive'), defaultValue: 'active' },
+        status:{ type: DataTypes.ENUM('active', 'inactive', 'deleted'), defaultValue: 'active' },
     },{ timestamps: true })
 }
