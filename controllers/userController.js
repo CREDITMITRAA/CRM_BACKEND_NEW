@@ -1,10 +1,15 @@
+const { where, Op } = require("sequelize");
 const { User, sequelize, Role, LeadAssignment, Activity } = require("../models");
 const { ApiResponse } = require("../utilities/api-responses/ApiResponse");
 const bcrypt = require("bcryptjs");
 
 async function getAllUsers(req, res) {
   try {
-    const users = await User.findAll();
+    const users = await User.findAll({
+      where: {
+        status: 'active',
+      },
+    });
     ApiResponse(res, "success", 200, "Users fetched successfully", users);
   } catch (err) {
     ApiResponse(res, "error", 500, "Failed to fetch users", null, {
@@ -196,10 +201,53 @@ const deleteUserByUserId = async (req, res) => {
   }
 };
 
+async function getUsersByName(req,res){
+  try {
+    console.log('request received');
+    
+    const {name} = req.query
+    if(!name){
+      return ApiResponse(res, 'error', 400, "Missing required fields !")
+    }
+
+    const users = await User.findAll({
+      attributes: ["id","name"],
+      where:{
+        name:{
+          [Op.like] : `%${name}%`
+        }
+      }
+    })
+
+    return ApiResponse(res,'success', 200, "Users with matching name fetch successfully", users, null,null)
+  } catch (error) {
+      console.log(error);
+      return ApiResponse(res, 'error', 500, "Failed to fetch users with matching name !", null, error, null)
+  }
+}
+
+async function getUsersNameAndId(req, res) {
+  try {
+    const users = await User.findAll({
+      attributes: ['id', 'name'],
+      where: {
+        status: 'active',
+      },
+    });
+    ApiResponse(res, "success", 200, "Users fetched successfully", users);
+  } catch (err) {
+    ApiResponse(res, "error", 500, "Failed to fetch users", null, {
+      message: err.message,
+    });
+  }
+}
+
 module.exports = {
   getAllUsers,
   getUserById,
   createUser,
   updateUser,
   deleteUserByUserId,
+  getUsersByName,
+  getUsersNameAndId
 };

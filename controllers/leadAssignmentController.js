@@ -1,4 +1,5 @@
 const { Op } = require("sequelize");
+const moment = require("moment-timezone");
 const {
   sequelize,
   LeadAssignment,
@@ -7,6 +8,7 @@ const {
   Activity,
 } = require("../models"); // Adjust paths as needed
 const { ApiResponse } = require("../utilities/api-responses/ApiResponse");
+const { INITIAL_LEAD_STATUSES } = require("../utilities/constants");
 
 async function assignLeadsToEmployee(req, res) {
   const transaction = await sequelize.transaction();
@@ -23,12 +25,13 @@ async function assignLeadsToEmployee(req, res) {
       return ApiResponse(res, "ERROR", 400, "Missing required fields!");
     }
 
-    // Fetch the assigned employee and assigning user
+    // Fetch the assigned employee and assigning user (no validation needed if they exist in DB)
     const [employee, assigningUser] = await Promise.all([
       User.findByPk(assignedTo),
       User.findByPk(assignedBy),
     ]);
 
+    // Validate that employee and assigning user exist
     if (!employee) {
       return ApiResponse(res, "ERROR", 404, "Assigned employee not found!");
     }
@@ -36,27 +39,8 @@ async function assignLeadsToEmployee(req, res) {
       return ApiResponse(res, "ERROR", 404, "Assigning user not found!");
     }
 
-    // Fetch all provided leads to ensure they exist
-    const existingLeads = await Lead.findAll({
-      where: { id: leadIds },
-      attributes: ["id"], // Fetch only required fields
-    });
-    const existingLeadIds = existingLeads.map((lead) => lead.id);
-
-    const invalidLeadIds = leadIds.filter(
-      (id) => !existingLeadIds.includes(id)
-    );
-    if (invalidLeadIds.length > 0) {
-      return ApiResponse(
-        res,
-        "ERROR",
-        400,
-        `Invalid lead IDs: ${invalidLeadIds.join(", ")}`
-      );
-    }
-
     // Prepare bulk upsert data for lead assignments
-    const bulkAssignments = existingLeadIds.map((leadId) => ({
+    const bulkAssignments = leadIds.map((leadId) => ({
       lead_id: leadId,
       assigned_to: assignedTo,
       assigned_by: assignedBy,
@@ -72,10 +56,13 @@ async function assignLeadsToEmployee(req, res) {
     // Commit transaction
     await transaction.commit();
 
+    // Return response with the assigned employee's name
     return ApiResponse(res, "SUCCESS", 200, "Leads assigned successfully!", {
-      assignedTo,
-      assignedBy,
-      assignedLeadIds: existingLeadIds,
+      assignedTo: {
+        name: employee.name,  // Return the assigned employee's name
+      },
+      assignedBy: assigningUser.name,
+      assignedLeadIds: leadIds,
     });
   } catch (error) {
     console.error("Error assigning leads to employee:", error);
@@ -92,6 +79,7 @@ async function assignLeadsToEmployee(req, res) {
   }
 }
 
+
 async function getLeadsByAssignedUserId(req, res) {
   try {
     // const { assignedTo } = req.params;
@@ -107,6 +95,7 @@ async function getLeadsByAssignedUserId(req, res) {
       assignedBy,
       page = 1, // Default to page 1
       limit = 10, // Default to 10 leads per page
+      exclude_verification
     } = req.query;
 
     // Validate input
@@ -129,21 +118,41 @@ async function getLeadsByAssignedUserId(req, res) {
     if (email) leadFilters.email = { [Op.like]: `%${email}%` };
     if (phone) leadFilters.phone = { [Op.like]: `%${phone}%` };
     if (leadSource) leadFilters.lead_source = { [Op.like]: `%${leadSource}%` };
-
-    // Handle date filter (adjusting for UTC vs. local timezone differences)
-    if (date) {
-      const importedDate = new Date(date);
-      const startOfDay = new Date(importedDate.setHours(0, 0, 0, 0));
-      const endOfDay = new Date(importedDate.setHours(23, 59, 59, 999));
-      leadFilters.createdAt = { [Op.between]: [startOfDay, endOfDay] };
+    if (leadStatus) {
+      leadFilters.lead_status = { [Op.like]: `%${leadStatus}%` };
+    } else if (exclude_verification === 'true') {
+      // Exclude leads with status "Verification 1"
+      leadFilters.lead_status = { [Op.in]: [...INITIAL_LEAD_STATUSES] };
     }
 
+    // Handle date filter (adjusting for UTC vs. local timezone differences)
+    // if (date) {
+    //   const importedDate = new Date(date);
+    //   const startOfDay = new Date(importedDate.setHours(0, 0, 0, 0));
+    //   const endOfDay = new Date(importedDate.setHours(23, 59, 59, 999));
+    //   leadFilters.createdAt = { [Op.between]: [startOfDay, endOfDay] };
+    // }
+
     const activityFilters = {};
-    if (leadStatus) activityFilters.activity_status = leadStatus;
     if (docsCollected !== undefined) activityFilters.docs_collected = docsCollected === '1';
 
     const leadAssignmentFilters = { assigned_to: userId };
     if (assignedBy) leadAssignmentFilters.assigned_by = assignedBy;
+    if(date){
+      const startOfDayUTC = moment
+              .tz(date, "Asia/Kolkata")
+              .startOf("day")
+              .utc()
+              .toDate();
+            const endOfDayUTC = moment
+              .tz(date, "Asia/Kolkata")
+              .endOf("day")
+              .utc()
+              .toDate();
+              leadAssignmentFilters.createdAt = {
+              [Op.between]: [startOfDayUTC, endOfDayUTC],
+            };
+    }
 
     // Step 1: Fetch the total count of leads without activities to avoid inflated count due to join
     const { count } = await LeadAssignment.findAndCountAll({
@@ -170,7 +179,7 @@ async function getLeadsByAssignedUserId(req, res) {
           model: Lead,
           as: 'Lead',
           where: leadFilters,
-          attributes: ['id', 'name', 'email', 'phone', 'lead_source', 'createdAt'],
+          attributes: ['id', 'name', 'email', 'phone', 'lead_source', 'createdAt', 'lead_status'],
           include: [
             {
               model: Activity,
@@ -206,6 +215,7 @@ async function getLeadsByAssignedUserId(req, res) {
       email: assignment.Lead.email,
       phone: assignment.Lead.phone,
       leadSource: assignment.Lead.lead_source,
+      leadStatus: assignment.Lead.lead_status,
       importedOn: assignment.Lead.createdAt,
       assignedAt: assignment.createdAt,
       assignedBy: {

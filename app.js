@@ -18,6 +18,7 @@ app.use(bodyParser.urlencoded({ extended: true })); // Parse URL-encoded data
 // app.use(morgan('dev')); // Log HTTP requests
 app.use(cors({
   origin: 'http://localhost:3001',  // Your frontend URL
+  // origin: 'http://crm.creditmitra.in',  // Your frontend URL for PRODUCTION
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   credentials: true,  // Allow credentials (cookies, tokens)
 }));
@@ -39,7 +40,7 @@ app.use((req, res, next) => {
 // Error handling middleware for server errors
 app.use((err, req, res, next) => {
   console.error(err.stack);
-  ApiResponse.ApiResponse(
+  ApiResponse(
     res,
     'error',
     500,

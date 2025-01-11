@@ -17,16 +17,22 @@ const {
   ROLE_ADMIN,
   ROLE_MANAGER,
   VERIFICATION_STATUSES,
+  ROLE_EMPLOYEE,
+  LEAD_STATUSES,
 } = require("../utilities/constants");
 
 async function createBulkLeads(req, res) {
   console.log(req.body, "Received leads data");
 
   const transaction = await sequelize.transaction(); // Start a transaction
-  try {
-    // Flag to enable/disable validation (Set to true in future for validation)
-    const validateLeads = false;
 
+  // Flags to enable/disable validation for specific fields
+  const validatePhone = true; // Set to false to skip phone validation
+  const validateEmail = false; // Set to false to skip email validation
+  const validateName = true; // Set to false to skip name validation
+  const validateSource = true; // Set to false to skip source validation
+
+  try {
     // Validate input: ensure it's a non-empty array
     if (!Array.isArray(req.body) || req.body.length === 0) {
       return ApiResponse(
@@ -38,51 +44,82 @@ async function createBulkLeads(req, res) {
     }
 
     // If validation is enabled, perform validation
-    let validLeads = req.body;
+    let validLeads = [];
     let invalidLeads = [];
 
-    if (validateLeads) {
-      // Validation regex
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/; // Basic email regex
-      const phoneRegex = /^[0-9]{10}$/; // Phone number should be exactly 10 digits
+    // Set to track duplicates
+    const phoneSet = new Set();
+    const emailSet = new Set();
 
-      validLeads = [];
-      invalidLeads = [];
+    // Validation regex
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/; // Basic email regex
+    const phoneRegex = /^(\+?\d{1,3}[-.\s]?)?(\d{10})$/; // Updated to allow optional country code
 
-      req.body.forEach((lead) => {
-        if (
-          lead.name &&
-          lead.email &&
-          emailRegex.test(lead.email) &&
-          lead.phone &&
-          phoneRegex.test(lead.phone)
-          // lead.source // Ensure lead_source is present
-        ) {
-          validLeads.push(lead);
-        } else {
-          invalidLeads.push({
-            ...lead,
-            reason: `Invalid ${
-              !lead.name
-                ? "name"
-                : !lead.email || !emailRegex.test(lead.email)
-                ? "email"
-                : !lead.phone || !phoneRegex.test(lead.phone)
-                ? "phone"
-                : "data"
-            }`,
-          });
+    req.body.forEach((lead) => {
+      let isValid = true;
+      let reason = "";
+
+      // Check for duplicate phone and email
+      if (validatePhone && phoneSet.has(lead.phone)) {
+        isValid = false;
+        reason = "duplicate phone";
+      } else if (validateEmail && emailSet.has(lead.email)) {
+        isValid = false;
+        reason = "duplicate email";
+      }
+
+      if (isValid) {
+        // Validate name
+        if (validateName && !lead.name) {
+          invalidLeads.push({ ...lead, reason: "Invalid name" });
         }
-      });
-    }
+        // Validate email
+        else if (validateEmail && !emailRegex.test(lead.email)) {
+          invalidLeads.push({ ...lead, reason: "Invalid email" });
+        }
+        // Validate phone
+        else if (validatePhone && !phoneRegex.test(lead.phone)) {
+          invalidLeads.push({ ...lead, reason: "Invalid phone" });
+        }
+        // Validate source
+        else if (validateSource && !lead.lead_source) {
+          invalidLeads.push({ ...lead, reason: "Invalid source" });
+        } else {
+          validLeads.push(lead);
+          if(validatePhone) phoneSet.add(lead.phone); // Track unique phone numbers
+          if(validateEmail) emailSet.add(lead.email); // Track unique emails
+        }
+      } else {
+        invalidLeads.push({ ...lead, reason: `Duplicate ${reason}` });
+      }
+    });
 
     // Handle valid leads: Bulk create within a transaction
     let createdLeads = [];
     if (validLeads.length > 0) {
-      createdLeads = await Lead.bulkCreate(validLeads, {
-        validate: true,
-        transaction,
-      });
+      try {
+        createdLeads = await Lead.bulkCreate(validLeads, {
+          validate: true,
+          transaction,
+        });
+      } catch (error) {
+        // Handle database error (e.g., ER_DUP_ENTRY)
+        if (error.code === "ER_DUP_ENTRY") {
+          const dbErrorLeads = validLeads.map((lead) => ({
+            ...lead,
+            reason: `Database error: ${error.sqlMessage}`,
+          }));
+          await InvalidLead.bulkCreate(dbErrorLeads, { transaction });
+          console.error("Error during bulk creation of valid leads:", error);
+        } else {
+          const dbErrorLeads = validLeads.map((lead) => ({
+            ...lead,
+            reason: `Database error: ${error.message}`,
+          }));
+          await InvalidLead.bulkCreate(dbErrorLeads, { transaction });
+          console.error("Error during bulk creation of valid leads:", error);
+        }
+      }
     }
 
     // Handle invalid leads: Save to InvalidLeads table
@@ -125,17 +162,16 @@ async function createBulkLeads(req, res) {
       );
     }
 
-    // Handle other errors
+    // Handle other errors with detailed message
     return ApiResponse(
       res,
       "error",
       500,
       "Failed to process leads",
-      error.message
+      `Error: ${error.message}`
     );
   }
 }
-
 
 async function getAllLeadsWithPagination(req, res) {
   try {
@@ -152,7 +188,8 @@ async function getAllLeadsWithPagination(req, res) {
       verification_status,
       assigned_to,
       lead_status,
-      assigned_to_name
+      assigned_to_name,
+      application_status
     } = req.query;
 
     // const limit = parseInt(req.query.limit) || 50;
@@ -164,7 +201,7 @@ async function getAllLeadsWithPagination(req, res) {
     if (isNaN(pageSize) || pageSize < 1) pageSize = 10;
 
     const whereConditions = {};
-    let leadAssignmentConditions= {}
+    let leadAssignmentConditions = {};
     if (name) whereConditions.name = { [Op.like]: `%${name}%` };
     if (email) whereConditions.email = { [Op.like]: `%${email}%` };
     if (phone) whereConditions.phone = { [Op.like]: `%${phone}%` };
@@ -180,6 +217,11 @@ async function getAllLeadsWithPagination(req, res) {
       whereConditions.lead_status = {
         [Op.like]: `%${lead_status}%`, // Use Op.iLike for case-insensitivity if supported
       };
+    }
+    if(application_status){
+      whereConditions.application_status = {
+        [Op.like]: `%${application_status}%`, // Use Op.iLike for case-insensitivity
+      }
     }
 
     if (importedOn) {
@@ -198,11 +240,11 @@ async function getAllLeadsWithPagination(req, res) {
       };
     }
 
-    if(assigned_to){
-      leadAssignmentConditions.assigned_to=assigned_to
+    if (assigned_to) {
+      leadAssignmentConditions.assigned_to = assigned_to;
     }
 
-     if (assigned_to_name) {
+    if (assigned_to_name) {
       // Use `Op.like` to filter based on the assigned user's name
       leadAssignmentConditions["AssignedTo.name"] = {
         [Op.like]: `%${assigned_to_name}%`,
@@ -232,14 +274,22 @@ async function getAllLeadsWithPagination(req, res) {
       },
     ];
 
+    const shouldOrderByUpdatedAt = whereConditions?.verification_status || whereConditions?.lead_status || whereConditions?.activity_status;
+    const orderConditions = shouldOrderByUpdatedAt
+      ? [
+          ["updatedAt", "DESC"], // Apply updatedAt sorting if verification_status is included
+          ["createdAt", "DESC"],
+          ["id", "DESC"],
+        ]
+      : [
+          ["createdAt", "DESC"], // Default ordering
+          ["id", "DESC"],
+        ];
+
     const { count, rows } = await Lead.findAndCountAll({
       where: whereConditions,
       include: includeConditions,
-      order: [
-        ["createdAt", "DESC"],
-        ["updatedAt","DESC"],
-        ["id", "DESC"],
-      ],
+      order: orderConditions,
       limit: pageSize,
       offset: (page - 1) * pageSize,
       distinct: true,
@@ -342,68 +392,99 @@ async function getLeadById(req, res) {
 async function updateLeadReportsActivities(req, res) {
   const transaction = await sequelize.transaction();
   try {
-    const { userId, leadId, lead, loanReports, creditReports, activity } =
-      req.body;
+    const {userId,leadId,lead,loanReports,creditReports,activity,application_status,lead_status,role,rejection_reason,verification_status} = req.body;
 
     // Validate if user exists
     const user = await User.findByPk(userId, { transaction });
-
     if (!user) {
       await transaction.rollback();
-      return ApiResponse(
-        res,
-        "error",
-        400,
-        "User Not Found!",
-        null,
-        null,
-        null
-      );
+      return ApiResponse(res,"error",400,"User Not Found!",null,null,null);
     }
 
+    // Validate role and application_status
+    if (application_status && role !== ROLE_ADMIN && role !== ROLE_MANAGER) {
+      await transaction.rollback();
+      return ApiResponse(res, "error", 403, "Unauthorized Access!");
+    }
+
+    const validApplicationStatuses = [
+      "Manager 1 Approved",
+      "Manager 2 Approved",
+      "Rejected",
+      "Closed",
+      "Login",
+    ];
+
+    if (application_status && !validApplicationStatuses.includes(application_status)) {
+      await transaction.rollback();
+      return ApiResponse(res, "error", 400, "Invalid Application Status!");
+    }
+
+    // If application_status is provided, validate lead status
+    if (application_status && verification_status !== "12 documents collected") {
+      await transaction.rollback();
+      return ApiResponse(res, "error", 400, "Application Status Cannot be Updated Now!");
+    }
+
+    // Define the update data for lead
     let updatedLead = null;
-    let createdLoanReports = [];
-    let createdCreditReports = [];
-    let createdActivity = null;
+    const updateData = {};
 
     // 1. Update the Lead if the data is provided
     if (lead) {
       updatedLead = await LeadServices.updateLead(leadId, lead, transaction);
     }
 
-    // 2. Create Loan Reports if provided
+    // 2. Update application status if provided
+    if (application_status) {
+      updateData.application_status = application_status;
+
+      // Handle rejection reason if application status is "Rejected"
+      if (application_status === "Rejected") {
+        if (!rejection_reason) {
+          await transaction.rollback();
+          return ApiResponse(res, "error", 400, "Rejection reason is required!");
+        }
+        updateData.is_rejected = true;
+        updateData.rejection_reason = rejection_reason;
+      } else {
+        // If the application status is not Rejected, set is_rejected to false and rejection_reason to null
+        updateData.is_rejected = false;
+        updateData.rejection_reason = null;
+      }
+
+      await LeadServices.updateLead(leadId, updateData, transaction);
+    }
+
+    let createdLoanReports = [];
+    let createdCreditReports = [];
+    let createdActivity = null;
+
+    // 3. Create Loan Reports if provided
     if (loanReports && loanReports.length > 0) {
-      createdLoanReports = await LoanReportServices.createLoanReports(
-        loanReports,
-        transaction
-      );
+      createdLoanReports = await LoanReportServices.createLoanReports(loanReports, transaction);
     }
 
-    // 3. Create Credit Reports if provided
+    // 4. Create Credit Reports if provided
     if (creditReports && creditReports.length > 0) {
-      createdCreditReports = await CreditReportServices.createCreditReports(
-        creditReports,
-        transaction
-      );
+      createdCreditReports = await CreditReportServices.createCreditReports(creditReports, transaction);
     }
 
-    // 4. Add Activity if provided
+    // 5. Add Activity if provided
     if (activity) {
-      createdActivity = await ActivityServices.addActivity(
-        activity,
-        transaction
-      );
+      createdActivity = await ActivityServices.addActivity(activity, transaction);
+      if(activity.activity_status === "Verification 1"){
+        await LeadServices.updateLead(leadId, {lead_status:activity.activity_status, verification_status:activity.activity_status}, transaction)
+      }else{
+        await LeadServices.updateLead(leadId, {lead_status:activity.activity_status}, transaction)
+      } 
     }
 
     // Commit the transaction after all operations
     await transaction.commit();
 
     // Return the response with updated data
-    return ApiResponse(
-      res,
-      "success",
-      200,
-      "Details updated successfully!",
+    return ApiResponse(res,"success",200,"Details updated successfully!",
       {
         updatedLead,
         createdLoanReports,
@@ -415,17 +496,9 @@ async function updateLeadReportsActivities(req, res) {
     );
   } catch (error) {
     // Rollback transaction on error
-    await transaction.rollback();
+    if (transaction) await transaction.rollback();
     console.error("Error in updating lead and adding reports:", error);
-    return ApiResponse(
-      res,
-      "error",
-      500,
-      "Failed to update details!",
-      null,
-      error,
-      null
-    );
+    return ApiResponse(res,"error",500,"Failed to update details!",null,error,null);
   }
 }
 
@@ -433,7 +506,7 @@ async function updateVerificationStatus(req, res) {
   let transaction;
   try {
     transaction = await sequelize.transaction();
-    const { lead_id, verification_status, role } = req.body;
+    const { lead_id, verification_status, role, rejection_reason } = req.body;
 
     if (!lead_id || !verification_status || !role) {
       return ApiResponse(res, "error", 400, "Missing required fields!");
@@ -463,10 +536,23 @@ async function updateVerificationStatus(req, res) {
       return ApiResponse(res, "error", 400, "Invalid verification status!");
     }
 
+    let updateData = {verification_status}
+    if(verification_status === "Rejected"){
+      if(!rejection_reason){
+        return ApiResponse(res, 'error', 400, "Rejection reason is required !")
+      }
+      updateData.application_status = verification_status
+      updateData.is_rejected = true
+      updateData.rejection_reason = rejection_reason
+    }else{
+      updateData.application_status = null
+      updateData.is_rejected = false
+      updateData.rejection_reason = null
+    }
     // Update lead
     const updatedLead = await LeadServices.updateLead(
       lead_id,
-      { verification_status },
+      updateData,
       transaction
     );
 
@@ -503,8 +589,10 @@ async function getTotalLeadsCount(req, res) {
       today = "false",
       assigned_to,
     } = req.query;
+
     let leadConditions = {};
     let assignmentConditions = {};
+
     if (status) leadConditions.status = { [Op.like]: `%${status}%` };
     if (lead_status)
       leadConditions.lead_status = { [Op.like]: `%${lead_status}%` };
@@ -516,15 +604,17 @@ async function getTotalLeadsCount(req, res) {
     // Filters for LeadAssignment
     if (assigned_to) assignmentConditions.assigned_to = assigned_to;
 
-    // Handle today filter: Convert IST to UTC
+    // Handle 'today' filter: Convert IST to UTC
     if (today === "true") {
-      // Get the current date in IST
-      const todayStartIST = moment().tz("Asia/Kolkata").startOf("day"); // 12:00 AM IST
-      const todayEndIST = moment().tz("Asia/Kolkata").endOf("day"); // 11:59 PM IST
+      // Get today's date in IST
+      const todayStartIST = moment.tz("Asia/Kolkata").startOf("day").toDate();
+      const todayEndIST = moment.tz("Asia/Kolkata").endOf("day").toDate();
 
-      // Convert these to UTC
-      const todayStartUTC = todayStartIST.utc().format("YYYY-MM-DD HH:mm:ss");
-      const todayEndUTC = todayEndIST.utc().format("YYYY-MM-DD HH:mm:ss");
+      // Convert to UTC
+      const todayStartUTC = moment(todayStartIST).utc().toDate();
+      const todayEndUTC = moment(todayEndIST).utc().toDate();
+
+      console.log("Date range in UTC:", todayStartUTC, todayEndUTC);
 
       if (assigned_to) {
         // Apply to LeadAssignment's `createdAt` if `assigned_to` is provided
@@ -532,7 +622,7 @@ async function getTotalLeadsCount(req, res) {
           [Op.between]: [todayStartUTC, todayEndUTC],
         };
       } else {
-        // Add the date range filter to whereConditions
+        // Apply date range to Lead's `createdAt`
         leadConditions.createdAt = {
           [Op.between]: [todayStartUTC, todayEndUTC],
         };
@@ -554,41 +644,117 @@ async function getTotalLeadsCount(req, res) {
         ],
       });
     } else {
-      // Otherwise, count from the Lead table directly
+      // Otherwise, count directly from the Lead table
       totalLeads = await Lead.count({
         where: leadConditions,
       });
     }
 
-    console.log("total leads today = ", totalLeads);
-    if (totalLeads === 0) {
-      return ApiResponse(
-        res,
-        "success",
-        200,
-        "Leads count fetched successfully",
-        totalLeads.toString()
-      );
-    }
+    console.log("Total leads count:", totalLeads);
+
+    // Return the response
     return ApiResponse(
       res,
       "success",
       200,
-      "Leads count fetch successfully",
-      totalLeads,
+      "Leads count fetched successfully",
+      totalLeads === 0 ? totalLeads.toString() : totalLeads,
       null,
       null
     );
   } catch (error) {
+    console.error("Error fetching leads count:", error);
     return ApiResponse(
       res,
       "error",
       500,
-      "Failed to fetch total leads count !",
+      "Failed to fetch total leads count!",
       null,
       error,
       null
     );
+  }
+}
+
+async function updateApplicationStatus(req,res){
+  const transaction = await sequelize.transaction()
+  try {
+    const {lead_id, application_status, lead_status, role, rejection_reason} = req.body
+
+    if(!lead_id || !application_status || !lead_status || !role){
+      return ApiResponse(res, 'error', 400, "Missing required fields !")
+    }
+
+    if (role !== ROLE_ADMIN && role !== ROLE_MANAGER) {
+      return ApiResponse(res,'error', 403, "Unauthorized Access !")
+    }
+
+    const validApplicationStatuses = [
+      "Manager 1 Approved",
+      "Manager 2 Approved",
+      "Rejected",
+      "Closed",
+      "Login"
+    ]
+
+    if(!validApplicationStatuses.includes(application_status)){
+      return ApiResponse(res,'error',400, "Invalid Appliation Status !")
+    }
+
+    if(lead_status !== "12 documents collected"){
+      return ApiResponse(res, 'error', 400, "Application Status Cannot Updated Now !")
+    }
+
+    const updateData = {application_status}
+
+    if(application_status === "Rejected"){
+      if(!rejection_reason){
+        return ApiResponse(res, 'error', 400, "Rejection reason is required !")
+      }
+      updateData.is_rejected = true
+      updateData.rejection_reason = rejection_reason
+    } else {
+      // If the application status is not Rejected, set is_rejected to false and rejection_reason to null
+      updateData.is_rejected = false;
+      updateData.rejection_reason = null;
+    }
+
+    const updatedLead = await LeadServices.updateLead(lead_id,updateData,transaction)
+    await transaction.commit()
+    return ApiResponse(res, 'success', 200, "Lead updated with application status successfully.", updatedLead, null,null)
+  } catch (error) {
+    if(transaction) await transaction.rollback()
+    console.log(error);
+    return ApiResponse(res,'error', 500, "Failed to update application status !", null,error,null)
+  }
+}
+
+async function updateLeadStatus(req,res){
+  const transaction = await sequelize.transaction()
+  try {
+      const {lead_id, lead_status, role} = req.body
+
+      if(!lead_id || !lead_status || !role){
+        return ApiResponse(res, 'error', 400, "Missing required fields !")
+      }
+
+      if (role !== ROLE_EMPLOYEE) {
+        return ApiResponse(res,'error', 403, "Only Employee can change lead status !")
+      }
+
+      if(!LEAD_STATUSES.includes(lead_status)){
+        return ApiResponse(res,'error',400, "Invalid Appliation Status !")
+      }
+
+      const updatedLead = await LeadServices.updateLead(lead_id,{lead_status}, transaction)
+
+      await transaction.commit()
+
+      return ApiResponse(res, 'success', 200, "Lead with new lead status updated successfully.", updatedLead, null, null)
+  } catch (error) {
+    if(transaction) await transaction.rollback()
+    console.log(error);
+    return ApiResponse(res,'error', 500, "Failed to update lead status !", null, error, null)
   }
 }
 
@@ -599,4 +765,6 @@ module.exports = {
   updateLeadReportsActivities,
   updateVerificationStatus,
   getTotalLeadsCount,
+  updateApplicationStatus,
+  updateLeadStatus
 };

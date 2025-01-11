@@ -1,5 +1,5 @@
 const { DataTypes } = require('sequelize');
-const { LEAD_STATUSES, VERIFICATION_STATUSES } = require('../utilities/constants');
+const { LEAD_STATUSES, VERIFICATION_STATUSES, TASK_STATUSES } = require('../utilities/constants');
 
 module.exports = (sequelize) => {
   return sequelize.define('Activity', {
@@ -10,10 +10,10 @@ module.exports = (sequelize) => {
     docs_collected: { type: DataTypes.BOOLEAN, defaultValue: false },
     created_by: { type: DataTypes.INTEGER },
     follow_up: { type: DataTypes.DATE },
-    // verification_status: { 
-    //   type: DataTypes.ENUM(...VERIFICATION_STATUSES), // Spread the array values into the ENUM type
-    //   defaultValue: 'Under Review' // Set a default value
-    // },
+    task_status: { 
+      type: DataTypes.ENUM(...TASK_STATUSES), // Spread the array values into the ENUM type
+      defaultValue: TASK_STATUSES[0] // Set a default value
+    },
     status: { type: DataTypes.ENUM('active', 'inactive'), defaultValue: 'active' },
   }, { timestamps: true});
 };

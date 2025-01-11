@@ -1,12 +1,12 @@
 const { DataTypes } = require('sequelize');
-const { LEAD_STATUSES, VERIFICATION_STATUSES } = require('../utilities/constants');
+const { LEAD_STATUSES, VERIFICATION_STATUSES, APPLICATION_STATUSES } = require('../utilities/constants');
 
 module.exports = (sequelize) => {
   return sequelize.define('Lead', {
     id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
-    name: { type: DataTypes.STRING, allowNull: false },
-    email: { type: DataTypes.STRING, allowNull: false },
-    phone: { type: DataTypes.STRING(15) },
+    name: { type: DataTypes.STRING },
+    email: { type: DataTypes.STRING },
+    phone: { type: DataTypes.STRING(15), unique:true },
     city: { type: DataTypes.STRING },
     company: { type: DataTypes.STRING },
     lead_source: { type: DataTypes.STRING },
@@ -17,6 +17,9 @@ module.exports = (sequelize) => {
       defaultValue: 'Under Review' // Set a default value
     },
     lead_status: { type: DataTypes.ENUM(...LEAD_STATUSES), defaultValue: 'Not Contacted' },
+    application_status : { type: DataTypes.ENUM(...APPLICATION_STATUSES) },
+    is_rejected: { type: DataTypes.BOOLEAN, defaultValue: false },
+    rejection_reason: { type: DataTypes.TEXT },
     status: { type: DataTypes.ENUM('active', 'inactive'), defaultValue: 'active' },
   }, { timestamps: true });
 };

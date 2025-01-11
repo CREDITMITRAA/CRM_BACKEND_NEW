@@ -6,5 +6,7 @@ router.post('/add-activity',ActivityController.addActivity)
 router.get('/get-activites-by-lead-id/:leadId', ActivityController.getActivitiesByLeadId)
 router.put('/update-activity-by-activity-id',  ActivityController.updateActivityByActivityId)
 router.get('/get-all-activities', ActivityController.getAllActivities)
+router.get('/get-all-tasks', ActivityController.getAllTasks)
+router.post('/update-task-status', ActivityController.updateTaskStatus)
 
 module.exports = router
